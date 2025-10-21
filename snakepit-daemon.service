@@ -1,0 +1,39 @@
+[Unit]
+Description=Snakepit Python Dependency Auto-Installer Daemon
+Documentation=https://github.com/your-org/snakepit
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+ExecStart=/usr/local/bin/snakepit daemon start --daemon
+ExecStop=/usr/local/bin/snakepit daemon stop
+ExecReload=/usr/local/bin/snakepit daemon restart
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=snakepit-daemon
+
+# Environment variables
+Environment=RUST_LOG=info
+Environment=SNAKEPIT_CONFIG_DIR=/home/%i/.config/snakepit
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/%i/.config/snakepit
+ReadWritePaths=/home/%i/.snakepit
+ReadWritePaths=/tmp
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target
