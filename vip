@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""
+VIP (Visual Install for Python) - pip wrapper with snake game visualization
+Intercepts pip install commands and displays progress in the snake game
+"""
+
+import sys
+import subprocess
+import re
+import queue
+import threading
+import os
+
+# Add snakepit to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from snake_monitor import SnakeMonitor, InstallEvent
+    GUI_AVAILABLE = True
+except ImportError:
+    GUI_AVAILABLE = False
+    print("Warning: pygame not available, running without visualization", file=sys.stderr)
+
+
+class PipOutputParser:
+    """Parse pip output and generate game events"""
+    
+    def __init__(self, event_queue):
+        self.event_queue = event_queue
+        self.packages = {}
+        self.current_downloading = None
+        self.current_building = None
+    
+    def parse_line(self, line: str):
+        """Parse a single line of pip output"""
+        line = line.strip()
+        
+        # Collecting package
+        if "Collecting" in line:
+            match = re.search(r'Collecting\s+([\w\-\.]+)', line)
+            if match:
+                pkg_name = match.group(1)
+                self.packages[pkg_name] = {"state": "queued"}
+                self.event_queue.put(InstallEvent("package_queued", name=pkg_name))
+        
+        # Downloading
+        elif "Downloading" in line:
+            match = re.search(r'Downloading\s+([\w\-\.]+).*?\((\d+\.?\d*)\s*(\w+)\)', line)
+            if match:
+                pkg_name = match.group(1).split('-')[0]
+                size_val = float(match.group(2))
+                size_unit = match.group(3).lower()
+                
+                # Convert to MB
+                if 'kb' in size_unit:
+                    size_mb = size_val / 1024
+                elif 'mb' in size_unit:
+                    size_mb = size_val
+                elif 'gb' in size_unit:
+                    size_mb = size_val * 1024
+                else:
+                    size_mb = size_val
+                
+                self.current_downloading = pkg_name
+                self.event_queue.put(InstallEvent("download_started", name=pkg_name, size_mb=size_mb))
+        
+        # Download progress (if pip shows progress)
+        elif "%" in line and self.current_downloading:
+            match = re.search(r'(\d+)%', line)
+            if match:
+                progress = int(match.group(1)) / 100.0
+                self.event_queue.put(InstallEvent("download_progress", 
+                                                 name=self.current_downloading, 
+                                                 progress=progress))
+        
+        # Building wheel
+        elif "Building wheel" in line:
+            match = re.search(r'Building wheel for\s+([\w\-\.]+)', line)
+            if match:
+                pkg_name = match.group(1)
+                self.current_building = pkg_name
+                self.event_queue.put(InstallEvent("build_started", name=pkg_name))
+        
+        # Successfully built
+        elif "Successfully built" in line:
+            match = re.search(r'Successfully built\s+([\w\-\.]+)', line)
+            if match:
+                pkg_name = match.group(1)
+                self.event_queue.put(InstallEvent("build_progress", name=pkg_name, progress=1.0))
+        
+        # Successfully installed
+        elif "Successfully installed" in line:
+            packages = re.findall(r'([\w\-\.]+)-[\d\.]+', line)
+            for pkg_name in packages:
+                self.event_queue.put(InstallEvent("install_complete", name=pkg_name))
+        
+        # Error
+        elif "ERROR:" in line or "error:" in line.lower():
+            # Try to extract package name from error
+            for pkg_name in self.packages.keys():
+                if pkg_name in line:
+                    self.event_queue.put(InstallEvent("install_failed", 
+                                                     name=pkg_name, 
+                                                     error=line))
+                    break
+
+
+def run_pip_with_visualization(args):
+    """Run pip command with live visualization"""
+    event_queue = queue.Queue()
+    parser = PipOutputParser(event_queue)
+    
+    # Start the GUI in a separate thread
+    gui_thread = None
+    if GUI_AVAILABLE and os.environ.get('DISPLAY'):
+        def run_gui():
+            monitor = SnakeMonitor(event_queue)
+            monitor.run()
+        
+        gui_thread = threading.Thread(target=run_gui, daemon=False)
+        gui_thread.start()
+    
+    # Run pip command
+    pip_cmd = [sys.executable, '-m', 'pip'] + args
+    
+    try:
+        process = subprocess.Popen(
+            pip_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        
+        # Parse output line by line
+        for line in process.stdout:
+            print(line, end='')  # Echo to terminal
+            parser.parse_line(line)
+        
+        process.wait()
+        exit_code = process.returncode
+        
+        # Signal completion
+        event_queue.put(InstallEvent("all_complete"))
+        
+        # Wait for GUI to finish if it's running
+        if gui_thread and gui_thread.is_alive():
+            gui_thread.join(timeout=10)
+        
+        return exit_code
+    
+    except KeyboardInterrupt:
+        print("\nInstallation interrupted by user")
+        return 130
+    except Exception as e:
+        print(f"Error running pip: {e}", file=sys.stderr)
+        return 1
+
+
+def main():
+    """Main entry point"""
+    args = sys.argv[1:]
+    
+    # Check if this is an install command that should be visualized
+    should_visualize = (
+        GUI_AVAILABLE and
+        len(args) > 0 and
+        args[0] in ['install', 'download'] and
+        '--help' not in args and
+        os.environ.get('DISPLAY') and
+        os.environ.get('VIP_NO_GUI') != '1'
+    )
+    
+    if should_visualize:
+        exit_code = run_pip_with_visualization(args)
+    else:
+        # Just run pip normally
+        pip_cmd = [sys.executable, '-m', 'pip'] + args
+        exit_code = subprocess.call(pip_cmd)
+    
+    sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()
