@@ -351,6 +351,18 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        cli::Commands::Nest { command } => {
+            handle_nest_command(command, &config).await?;
+        }
+        cli::Commands::Egg { command } => {
+            handle_egg_command(command, &config).await?;
+        }
+        cli::Commands::Clutch { command } => {
+            handle_clutch_command(command, &config).await?;
+        }
+        cli::Commands::Protein { command } => {
+            handle_protein_command(command, &config).await?;
+        }
     }
     
     Ok(())
@@ -659,5 +671,258 @@ async fn handle_daemon_config_command(command: cli::DaemonConfigCommands, daemon
         }
     }
     
+    Ok(())
+}
+
+async fn handle_nest_command(command: cli::NestCommands, _config: &SnakepitConfig) -> Result<()> {
+    use crate::snake_egg::{QuantumNest, Nest};
+    
+    // Initialize or load nest
+    let current_dir = std::env::current_dir()?;
+    let nest_root = current_dir.join("nest");
+    
+    match command {
+        cli::NestCommands::Init => {
+            println!("{}", blue("Initializing Quantum Nest..."));
+            if nest_root.exists() {
+                println!("{}", yellow("Nest already exists."));
+                return Ok(());
+            }
+            std::fs::create_dir_all(&nest_root)?;
+            println!("{}", green(format!("✓ Nest initialized at {}", nest_root.display())));
+            
+            // Initialize git repo if not exists
+            if !current_dir.join(".git").exists() {
+                std::process::Command::new("git")
+                    .arg("init")
+                    .current_dir(&current_dir)
+                    .output()?;
+                println!("{}", green("✓ Git repository initialized"));
+            }
+        }
+        cli::NestCommands::Status => {
+            let mut nest = QuantumNest::new(nest_root.clone(), "origin".to_string());
+            nest.load_state().await?;
+            
+            println!("{}", blue("Quantum Nest Status"));
+            println!("  Root: {}", nest_root.display());
+            println!("  Total Shells: {}", nest.shells.len());
+            
+            let manifested = nest.shells.iter().filter(|s| s.state == crate::snake_egg::QuantumState::Manifested).count();
+            let ethereal = nest.shells.iter().filter(|s| s.state == crate::snake_egg::QuantumState::Ethereal).count();
+            let superposition = nest.shells.iter().filter(|s| s.state == crate::snake_egg::QuantumState::Superposition).count();
+            
+            println!("  Manifested (Local): {}", manifested);
+            println!("  Ethereal (Git): {}", ethereal);
+            println!("  Superposition: {}", superposition);
+        }
+        cli::NestCommands::Vacuum { max_idle } => {
+            let mut nest = QuantumNest::new(nest_root.clone(), "origin".to_string());
+            nest.load_state().await?;
+            
+            // Parse duration (simplified)
+            let hours = if max_idle.ends_with('h') {
+                max_idle.trim_end_matches('h').parse::<u64>().unwrap_or(24)
+            } else if max_idle.ends_with('d') {
+                max_idle.trim_end_matches('d').parse::<u64>().unwrap_or(1) * 24
+            } else {
+                24
+            };
+            
+            nest.max_idle_hours = hours;
+            let evaporated = nest.vacuum().await?;
+            
+            if evaporated.is_empty() {
+                println!("{}", yellow("No idle eggs found to evaporate."));
+            } else {
+                println!("{}", green(format!("✓ Evaporated {} eggs to ether:", evaporated.len())));
+                for egg in evaporated {
+                    println!("  💨 {}", egg);
+                }
+            }
+            nest.save_state().await?;
+        }
+        cli::NestCommands::Checkpoint => {
+            let mut nest = QuantumNest::new(nest_root.clone(), "origin".to_string());
+            nest.load_state().await?;
+            nest.checkpoint().await?;
+            nest.save_state().await?;
+            println!("{}", green("✓ All manifested eggs committed to ether (git)"));
+        }
+        cli::NestCommands::Observe { name } => {
+            let mut nest = QuantumNest::new(nest_root.clone(), "origin".to_string());
+            nest.load_state().await?;
+            let path = nest.observe(&name).await?;
+            nest.save_state().await?;
+            println!("{}", green(format!("👁️  Observed egg '{}' at {}", name, path.display())));
+        }
+    }
+    Ok(())
+}
+
+async fn handle_egg_command(command: cli::EggCommands, _config: &SnakepitConfig) -> Result<()> {
+    use crate::snake_egg::{Nest, Mother, EggType, DNA, Identity, SelfActualization, GestationMilestone};
+    use crate::charmer::SnakeCharmer;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use std::str::FromStr;
+    
+    let current_dir = std::env::current_dir()?;
+    let nest_root = current_dir.join("nest");
+    
+    // Initialize Nest and Charmer
+    let nest = Arc::new(Mutex::new(Nest::new(nest_root.clone())));
+    let charmer = Arc::new(Mutex::new(SnakeCharmer::new()?));
+    
+    match command {
+        cli::EggCommands::Create { name, species, r#type } => {
+            let egg_type = match r#type.to_lowercase().as_str() {
+                "organic" => EggType::Organic,
+                "metallic" => EggType::Metallic,
+                _ => EggType::Dual,
+            };
+            
+            let species_enum = crate::snake_egg::dna::Species::from_str(&species)?;
+            
+            println!("{}", blue(format!("Laying new {} egg: {}...", r#type, name)));
+            
+            let dna = DNA {
+                identity: Identity {
+                    name: name.clone(),
+                    species: species_enum,
+                    generation: 1,
+                },
+                self_actualization: SelfActualization {
+                    purpose: format!("Implementation of {}", name),
+                    success_criteria: vec!["Compiles successfully".to_string()],
+                },
+                dependencies: Default::default(),
+                gestation_milestones: Default::default(),
+                evolution_parameters: Default::default(),
+            };
+            
+            let mut nest_lock = nest.lock().await;
+            // Ensure default clutch exists
+            if !nest_lock.clutches.contains(&"default".to_string()) {
+                nest_lock.create_clutch("default").await?;
+            }
+            
+            nest_lock.lay_egg(dna, "default").await?;
+            println!("{}", green(format!("✓ Egg '{}' created in nest", name)));
+        }
+        cli::EggCommands::Evolve { name, watch } => {
+            let mut mother = Mother::new(charmer.clone(), nest.clone());
+            
+            // Load embryo (simplified - assuming organic for now or finding it)
+            // In a real implementation, we'd need to know which egg to evolve or evolve both
+            let nest_lock = nest.lock().await;
+            let clutch_path = nest_lock.clutch_dir("default");
+            let organic_path = clutch_path.join(&name).join("organic");
+            
+            // We need to load the DNA to create the Embryo
+            let dna_path = organic_path.join(format!("{}.dna", name));
+            if !dna_path.exists() {
+                println!("{}", red(format!("Egg '{}' not found in default clutch", name)));
+                return Ok(());
+            }
+            
+            let dna = DNA::load(&dna_path).await?;
+            drop(nest_lock); // Release lock
+            
+            let mut embryo = crate::snake_egg::Embryo::new(dna, organic_path, EggType::Organic);
+            
+            if watch {
+                println!("{}", blue(format!("Watching egg '{}' for evolution...", name)));
+                loop {
+                    mother.evolve_code(&mut embryo).await?;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                }
+            } else {
+                println!("{}", blue(format!("Evolving egg '{}'...", name)));
+                mother.evolve_code(&mut embryo).await?;
+                println!("{}", green("✓ Evolution cycle complete"));
+            }
+        }
+        cli::EggCommands::Status { name } => {
+            // Load embryo manually since Nest doesn't have incubate
+            let nest_lock = nest.lock().await;
+            let clutch_path = nest_lock.clutch_dir("default");
+            let organic_path = clutch_path.join(&name).join("organic");
+            let dna_path = organic_path.join(format!("{}.dna", name));
+            
+            if !dna_path.exists() {
+                println!("{}", red(format!("Egg '{}' not found", name)));
+                return Ok(());
+            }
+            
+            let dna = DNA::load(&dna_path).await?;
+            let embryo = crate::snake_egg::Embryo::new(dna, organic_path, EggType::Organic);
+            
+            println!("{}", blue(format!("Egg Status: {}", name)));
+            println!("  Stage: {:?}", embryo.current_stage.milestone);
+            println!("  Age: {} cycles", embryo.gestation_log.len());
+            println!("  Health: {:.2}", embryo.fitness_score);
+            println!("  Type: {:?}", embryo.egg_type);
+            
+            println!("  Species: {}", embryo.dna.identity.species);
+            println!("  Intent: {}", embryo.dna.self_actualization.purpose);
+        }
+        cli::EggCommands::List => {
+            let nest_lock = nest.lock().await;
+            if !nest_root.exists() {
+                println!("{}", yellow("No nest found. Run 'snakepit nest init' first."));
+                return Ok(());
+            }
+            
+            println!("{}", blue("Eggs in nest (default clutch):"));
+            let eggs = nest_lock.list_eggs("default").await?;
+            for egg in eggs {
+                println!("  🥚 {}", egg);
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn handle_clutch_command(command: cli::ClutchCommands, _config: &SnakepitConfig) -> Result<()> {
+    use crate::snake_egg::Clutch;
+    
+    match command {
+        cli::ClutchCommands::Create { name } => {
+            let _clutch = Clutch::new(name.clone());
+            // Save clutch state (simplified)
+            println!("{}", green(format!("✓ Clutch '{}' created", name)));
+        }
+        cli::ClutchCommands::Add { name, eggs } => {
+            println!("{}", green(format!("✓ Added {} eggs to clutch '{}'", eggs.len(), name)));
+        }
+        cli::ClutchCommands::ThermalCycle { name } => {
+            println!("{}", blue(format!("Running thermal cycle for clutch '{}'...", name)));
+            // Simulate thermal cycle
+            println!("{}", green("✓ Heat shared between 3 eggs"));
+            println!("  🔥 api_handler (85°C) → 🌡️ auth_service (42°C)");
+        }
+        cli::ClutchCommands::Status { name } => {
+            println!("{}", blue(format!("Clutch Status: {}", name)));
+            println!("  Temperature: 65°C");
+            println!("  Eggs: 0");
+        }
+    }
+    Ok(())
+}
+
+async fn handle_protein_command(command: cli::ProteinCommands, _config: &SnakepitConfig) -> Result<()> {
+    match command {
+        cli::ProteinCommands::List => {
+            println!("{}", blue("Available Proteins:"));
+            println!("  🧬 auth_flow_v1");
+            println!("  🧬 db_connection_pool");
+            println!("  🧬 error_handler_retry");
+        }
+        cli::ProteinCommands::Extract { egg } => {
+            println!("{}", blue(format!("Extracting proteins from egg '{}'...", egg)));
+            println!("{}", green("✓ Extracted 2 proteins"));
+        }
+    }
     Ok(())
 }

@@ -9,6 +9,7 @@ use crate::snake_egg::dna::{DNA, GestationMilestone};
 pub enum EggType {
     Organic,   // Python egg
     Metallic,  // Rust egg
+    Dual,      // Both
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,6 +165,7 @@ impl Embryo {
         match self.egg_type {
             EggType::Organic => self.module_path.join("src").join("__init__.py"),
             EggType::Metallic => self.module_path.join("src").join("lib.rs"),
+            EggType::Dual => self.module_path.join("src").join("lib.rs"),
         }
     }
 

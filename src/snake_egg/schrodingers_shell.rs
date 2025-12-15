@@ -227,6 +227,7 @@ impl SchrodingersShell {
 }
 
 /// Quantum Nest Manager: Manages superposition states
+#[derive(Debug, Serialize, Deserialize)]
 pub struct QuantumNest {
     pub nest_root: PathBuf,
     pub shells: Vec<SchrodingersShell>,
@@ -242,6 +243,26 @@ impl QuantumNest {
             git_repo,
             max_idle_hours: 24,  // Default: 24 hours idle → evaporate
         }
+    }
+
+    pub async fn load_state(&mut self) -> Result<()> {
+        let state_path = self.nest_root.join("quantum_state.json");
+        if state_path.exists() {
+            let content = fs::read_to_string(state_path).await?;
+            let loaded: QuantumNest = serde_json::from_str(&content)?;
+            self.shells = loaded.shells;
+            self.max_idle_hours = loaded.max_idle_hours;
+            // nest_root and git_repo are kept from current instance or should be loaded?
+            // For now, we trust the loaded shells.
+        }
+        Ok(())
+    }
+
+    pub async fn save_state(&self) -> Result<()> {
+        let state_path = self.nest_root.join("quantum_state.json");
+        let content = serde_json::to_string_pretty(self)?;
+        fs::write(state_path, content).await?;
+        Ok(())
     }
 
     /// Observe egg (collapse if needed)

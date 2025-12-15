@@ -46,7 +46,7 @@ pub struct GestationMilestones {
     pub adult: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Dependencies {
     pub proteins: Vec<String>,
     pub maternal_modules: Vec<String>,
@@ -140,6 +140,71 @@ impl GestationMilestone {
             GestationMilestone::Hatchling => Some(GestationMilestone::Juvenile),
             GestationMilestone::Juvenile => Some(GestationMilestone::Adult),
             GestationMilestone::Adult => None,
+        }
+    }
+}
+
+impl std::fmt::Display for Species {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Species::Service => write!(f, "Service"),
+            Species::Utility => write!(f, "Utility"),
+            Species::Model => write!(f, "Model"),
+            Species::Handler => write!(f, "Handler"),
+            Species::Controller => write!(f, "Controller"),
+            Species::Repository => write!(f, "Repository"),
+        }
+    }
+}
+
+impl std::str::FromStr for Species {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "service" => Ok(Species::Service),
+            "utility" => Ok(Species::Utility),
+            "model" => Ok(Species::Model),
+            "handler" => Ok(Species::Handler),
+            "controller" => Ok(Species::Controller),
+            "repository" => Ok(Species::Repository),
+            _ => Err(anyhow!("Unknown species: {}", s)),
+        }
+    }
+}
+
+impl std::fmt::Display for GestationMilestone {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GestationMilestone::Zygote => write!(f, "Zygote"),
+            GestationMilestone::Embryo => write!(f, "Embryo"),
+            GestationMilestone::Fetus => write!(f, "Fetus"),
+            GestationMilestone::Hatchling => write!(f, "Hatchling"),
+            GestationMilestone::Juvenile => write!(f, "Juvenile"),
+            GestationMilestone::Adult => write!(f, "Adult"),
+        }
+    }
+}
+
+impl Default for GestationMilestones {
+    fn default() -> Self {
+        Self {
+            zygote: "Initial structure created".to_string(),
+            embryo: "Basic methods implemented".to_string(),
+            fetus: "Core logic functional".to_string(),
+            hatchling: "Tests passing".to_string(),
+            juvenile: "Optimized and documented".to_string(),
+            adult: "Production ready".to_string(),
+        }
+    }
+}
+
+impl Default for EvolutionParameters {
+    fn default() -> Self {
+        Self {
+            mutation_rate: 0.1,
+            learning_rate: 0.5,
+            fitness_function: "standard".to_string(),
         }
     }
 }

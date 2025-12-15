@@ -211,6 +211,7 @@ impl Mother {
         let lang = match embryo.egg_type {
             EggType::Organic => "Python",
             EggType::Metallic => "Rust",
+            EggType::Dual => "Rust/Python Hybrid",
         };
         
         let focus = match embryo.current_stage.milestone {

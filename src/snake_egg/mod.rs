@@ -7,7 +7,7 @@ pub mod clutch;
 pub mod chrono_capacitus;
 pub mod schrodingers_shell;
 
-pub use dna::{DNA, SelfActualization, GestationMilestone};
+pub use dna::{DNA, SelfActualization, GestationMilestone, Identity, Species, Dependencies, EvolutionParameters};
 pub use protein::Protein;
 pub use nest::Nest;
 pub use mother::Mother;
