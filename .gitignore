@@ -127,13 +127,15 @@ secrets/
 .gemini/
 .grok/
 
-# Test Files and Outputs
+# Test Files and Outputs (exclude temp test files, keep proper tests)
 test_*.py
-test_*.rs
 *_test.py
-*_test.rs
 test_results.json
 test_output/
+
+# Keep proper integration tests
+!tests/**/*.rs
+!tests/**/*.py
 
 # Editor-Specific (JetBrains, Sublime, Vim, Emacs)
 .idea/
