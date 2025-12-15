@@ -90,3 +90,4 @@ echo "  PID file:    /home/$SUDO_USER/.config/snakepit/snakepit.pid"
 echo ""
 echo -e "${YELLOW}Note: The daemon will auto-start on boot if enabled.${NC}"
 echo -e "${YELLOW}To start the daemon now, run: sudo systemctl start $SERVICE_NAME${NC}"
+

@@ -132,6 +132,38 @@ _snakepit_python_wrapper() {
         fi
     fi
     
+    # Check if running a Python script file (not -m, -c, etc.)
+    if [[ ${#args[@]} -gt 0 ]] && [[ "${args[0]}" != -* ]] && [[ -f "${args[0]}" ]]; then
+        # Run the script and capture output/error
+        command python3 "$@" 2>&1
+        local exit_code=$?
+        
+        # Check if it failed due to IndentationError
+        if [[ $exit_code -ne 0 ]]; then
+            local error_output=$(command python3 "$@" 2>&1)
+            if echo "$error_output" | grep -q "IndentationError"; then
+                echo "🐍 Snakepit: IndentationError detected in ${args[0]}. Auto-correcting..."
+                # Run the fix command
+                python3 "$SNAKEPIT_CLI" fix "${args[0]}"
+                if [[ $? -eq 0 ]]; then
+                    echo "✅ Fixed. Re-running script..."
+                    # Re-run the script
+                    command python3 "$@"
+                    return $?
+                else
+                    echo "❌ Failed to auto-fix. Original error:"
+                    echo "$error_output"
+                    return $exit_code
+                fi
+            else
+                # Not an indentation error, show original error
+                echo "$error_output"
+                return $exit_code
+            fi
+        fi
+        return $exit_code
+    fi
+    
     # Otherwise, run normally
     command python3 "$@"
 }

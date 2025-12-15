@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "snakepit")]
+#[command(version)]
 #[command(about = "A dynamic Rust-based Python dependency installer")]
 pub struct Cli {
     #[command(subcommand)]
@@ -45,17 +46,45 @@ pub enum Commands {
         #[command(subcommand)]
         command: DaemonCommands,
     },
-    /// Play InstallSnake game (demo)
-    Game {
-        /// Theme: retro, amber, matrix, minimal, error
-        #[arg(short, long, default_value = "retro")]
-        theme: String,
-        /// FPS (frames per second)
-        #[arg(short, long, default_value = "12")]
-        fps: u32,
-        /// Board width
-        #[arg(short, long, default_value = "60")]
-        width: usize,
+    /// Fix a broken command by analyzing its error output
+    Fix {
+        /// The command to run and analyze (use -- to separate args)
+        #[arg(last = true)]
+        command: Vec<String>,
+    },
+    /// Get AI-powered package recommendations
+    Recommend {
+        /// What you want to do (e.g., "web scraping", "data visualization")
+        query: String,
+        /// Project context for better recommendations
+        #[arg(short, long)]
+        context: Option<String>,
+    },
+    /// Hallucinatory Fangs: Modify module behavior safely
+    Fangs {
+        #[command(subcommand)]
+        action: FangsAction,
+    },
+    /// Solid Snake: Test on Android devices
+    Snake {
+        #[command(subcommand)]
+        action: SnakeAction,
+    },
+    /// Manage package snapshots
+    Snapshot {
+        #[command(subcommand)]
+        action: SnapshotAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SnapshotAction {
+    /// List all snapshots
+    List,
+    /// Restore a snapshot
+    Restore {
+        /// Snapshot ID
+        id: String,
     },
 }
 
@@ -125,4 +154,131 @@ pub enum DaemonConfigCommands {
     Show,
     /// Reset to default configuration
     Reset,
+}
+
+#[derive(Subcommand)]
+pub enum FangsAction {
+    /// Fork a module for modification
+    Fork {
+        /// Module name
+        module: String,
+    },
+    /// Add logging to a function
+    Log {
+        /// Module name
+        module: String,
+        /// Function name
+        function: String,
+    },
+    /// Add retry logic to a function
+    Retry {
+        /// Module name
+        module: String,
+        /// Function name
+        function: String,
+        /// Maximum retry attempts
+        #[arg(short, long, default_value = "3")]
+        max_attempts: u32,
+        /// Backoff time in milliseconds
+        #[arg(short, long, default_value = "1000")]
+        backoff_ms: u64,
+    },
+    /// Add caching to a function
+    Cache {
+        /// Module name
+        module: String,
+        /// Function name
+        function: String,
+        /// TTL in seconds
+        #[arg(short, long, default_value = "3600")]
+        ttl: u64,
+    },
+    /// Mock function return value
+    Mock {
+        /// Module name
+        module: String,
+        /// Function name
+        function: String,
+        /// Return value (Python expression)
+        value: String,
+    },
+    /// Inject custom code into a function
+    Custom {
+        /// Module name
+        module: String,
+        /// Function name
+        function: String,
+        /// Python code to inject
+        code: String,
+    },
+    /// List all forked modules
+    List,
+    /// Rollback modifications to a module
+    Rollback {
+        /// Module name
+        module: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SnakeAction {
+    /// Discover connected Android devices
+    Discover,
+    
+    /// Connect to device via WiFi
+    Connect {
+        /// IP address of device
+        ip: String,
+        
+        /// Port (default: 5555)
+        #[arg(short, long, default_value = "5555")]
+        port: u16,
+    },
+    
+    /// Disconnect from WiFi device
+    Disconnect {
+        /// IP address of device
+        ip: String,
+        
+        /// Port (default: 5555)
+        #[arg(short, long, default_value = "5555")]
+        port: u16,
+    },
+    
+    /// Install package on device
+    Install {
+        /// Device ID
+        #[arg(short, long)]
+        device: String,
+        
+        /// Package name
+        package: String,
+    },
+    
+    /// Run tests on device
+    Test {
+        /// Device ID
+        #[arg(short, long)]
+        device: String,
+        
+        /// Test file
+        test_file: String,
+    },
+    
+    /// Profile performance on device
+    Profile {
+        /// Device ID
+        #[arg(short, long)]
+        device: String,
+        
+        /// Script to profile
+        script: String,
+    },
+    
+    /// Stream logs from device
+    Logs {
+        /// Device ID
+        #[arg(short, long)]
+        device: String,
+    },
 }

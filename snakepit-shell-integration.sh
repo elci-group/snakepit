@@ -1,4 +1,3 @@
-#!/bin/bash
 # Snakepit Shell Integration - Routes all pip/python installations through smart backend
 # Source this file in your ~/.bashrc to enable snakepit routing
 
@@ -13,20 +12,28 @@ fi
 # Export snakepit directory for other scripts
 export SNAKEPIT_HOME="$SNAKEPIT_DIR"
 
-# Make wrapper executable
-chmod +x "$SNAKEPIT_DIR/snakepit-pip-wrapper.sh" 2>/dev/null
-
 # Source universal wrappers
 source "$SNAKEPIT_DIR/snakepit-universal-wrapper.sh"
 
 # Create pip wrapper function
 pip() {
-    _snakepit_pip_wrapper "$@"
+    # Check if snakepit binary exists
+    if command -v snakepit &> /dev/null; then
+        if [[ "$1" == "install" ]] && [[ "$SNAKEPIT_BYPASS" != "1" ]]; then
+            shift
+            snakepit install "$@"
+        else
+            command pip "$@"
+        fi
+    else
+        # Fallback to system pip if snakepit not found
+        command pip "$@"
+    fi
 }
 
 # Also wrap pip3
 pip3() {
-    _snakepit_pip_wrapper "$@"
+    pip "$@"
 }
 
 # Wrap python/python3 for -m pip

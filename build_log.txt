@@ -1,0 +1,517 @@
+   Compiling snakepit v0.2.0 (/home/adminx/snakepit)
+error[E0432]: unresolved import `regex`
+ --> src/dependency.rs:4:5
+  |
+4 | use regex::Regex;
+  |     ^^^^^ use of unresolved module or unlinked crate `regex`
+  |
+  = help: if you wanted to use a crate named `regex`, use `cargo add regex` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `regex`
+ --> src/process_monitor.rs:2:5
+  |
+2 | use regex::Regex;
+  |     ^^^^^ use of unresolved module or unlinked crate `regex`
+  |
+  = help: if you wanted to use a crate named `regex`, use `cargo add regex` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `uuid`
+ --> src/handler.rs:4:5
+  |
+4 | use uuid::Uuid;
+  |     ^^^^ use of unresolved module or unlinked crate `uuid`
+  |
+  = help: if you wanted to use a crate named `uuid`, use `cargo add uuid` to add it to your `Cargo.toml`
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `chrono`
+   --> src/process_monitor.rs:202:13
+    |
+202 |             chrono::Utc::now().format("%Y-%m-%d %H:%M:%S"),
+    |             ^^^^^^ use of unresolved module or unlinked crate `chrono`
+    |
+    = help: if you wanted to use a crate named `chrono`, use `cargo add chrono` to add it to your `Cargo.toml`
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `dirs`
+   --> src/installer.rs:316:25
+    |
+316 |         let cache_dir = dirs::cache_dir()
+    |                         ^^^^ use of unresolved module or unlinked crate `dirs`
+    |
+    = help: if you wanted to use a crate named `dirs`, use `cargo add dirs` to add it to your `Cargo.toml`
+help: consider importing this module
+    |
+  1 + use crate::native::dirs;
+    |
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `dirs`
+   --> src/installer.rs:350:25
+    |
+350 |         let cache_dir = dirs::cache_dir()
+    |                         ^^^^ use of unresolved module or unlinked crate `dirs`
+    |
+    = help: if you wanted to use a crate named `dirs`, use `cargo add dirs` to add it to your `Cargo.toml`
+help: consider importing this module
+    |
+  1 + use crate::native::dirs;
+    |
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `dirs`
+   --> src/installer.rs:410:24
+    |
+410 |             let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    |                        ^^^^ use of unresolved module or unlinked crate `dirs`
+    |
+    = help: if you wanted to use a crate named `dirs`, use `cargo add dirs` to add it to your `Cargo.toml`
+help: consider importing this module
+    |
+  1 + use crate::native::dirs;
+    |
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `dirs`
+   --> src/installer.rs:534:25
+    |
+534 |              let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+    |                         ^^^^ use of unresolved module or unlinked crate `dirs`
+    |
+    = help: if you wanted to use a crate named `dirs`, use `cargo add dirs` to add it to your `Cargo.toml`
+help: consider importing this module
+    |
+  1 + use crate::native::dirs;
+    |
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `dirs`
+  --> src/venv.rs:55:29
+   |
+55 |         if let Some(home) = dirs::home_dir() {
+   |                             ^^^^ use of unresolved module or unlinked crate `dirs`
+   |
+   = help: if you wanted to use a crate named `dirs`, use `cargo add dirs` to add it to your `Cargo.toml`
+help: consider importing this module
+   |
+ 1 + use crate::native::dirs;
+   |
+
+error[E0425]: cannot find function `new` in module `id`
+  --> src/daemon.rs:85:28
+   |
+85 |             daemon_id: id::new(),
+   |                            ^^^ not found in `id`
+
+error[E0425]: cannot find function `magenta` in this scope
+  --> src/handler.rs:54:32
+   |
+54 |                 println!("{}", magenta("🐍 CHARMER: Consulting the oracles (PyPI + Gemini)..."));
+   |                                ^^^^^^^ not found in this scope
+   |
+help: consider importing this function
+   |
+ 1 + use crate::native::style::magenta;
+   |
+
+error[E0425]: cannot find function `magenta` in this scope
+   --> src/handler.rs:156:32
+    |
+156 |                 println!("{}", magenta(format!("🐍 CHARMER: Suggests running command: {}", cmd)));
+    |                                ^^^^^^^ not found in this scope
+    |
+help: consider importing this function
+    |
+  1 + use crate::native::style::magenta;
+    |
+
+error[E0425]: cannot find function `magenta` in this scope
+   --> src/handler.rs:169:32
+    |
+169 |                 println!("{}", magenta("🐍 CHARMER: Generated a custom Python test script."));
+    |                                ^^^^^^^ not found in this scope
+    |
+help: consider importing this function
+    |
+  1 + use crate::native::style::magenta;
+    |
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `dirs`
+  --> src/hallucinatory_fangs.rs:39:27
+   |
+39 |         let sandbox_dir = dirs::cache_dir()
+   |                           ^^^^ use of unresolved module or unlinked crate `dirs`
+   |
+   = help: if you wanted to use a crate named `dirs`, use `cargo add dirs` to add it to your `Cargo.toml`
+help: consider importing this module
+   |
+ 1 + use crate::native::dirs;
+   |
+
+error[E0425]: cannot find function `magenta` in this scope
+   --> src/main.rs:129:40
+    |
+129 |                         println!("{}", magenta("❌ Command failed. Consulting Snake Charmer..."));
+    |                                        ^^^^^^^ not found in this scope
+    |
+help: consider importing this function
+    |
+  1 + use crate::native::style::magenta;
+    |
+
+error[E0425]: cannot find function `magenta` in this scope
+   --> src/main.rs:134:52
+    |
+134 | ...                   println!("{}", magenta(format!("🐍 CHARMER: Diagnosis complete. Missing package: {}", package)));
+    |                                      ^^^^^^^ not found in this scope
+    |
+help: consider importing this function
+    |
+  1 + use crate::native::style::magenta;
+    |
+
+warning: unused imports: `blue` and `bold`
+ --> src/installer.rs:5:48
+  |
+5 | use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                ^^^^        ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::io::Cursor`
+   --> src/installer.rs:185:13
+    |
+185 |         use std::io::Cursor;
+    |             ^^^^^^^^^^^^^^^
+
+warning: unused import: `zip::ZipArchive`
+   --> src/installer.rs:186:13
+    |
+186 |         use zip::ZipArchive;
+    |             ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::os::unix::fs::MetadataExt`
+   --> src/installer.rs:887:17
+    |
+887 |             use std::os::unix::fs::MetadataExt;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `blue`, `bold`, `cyan`, `dim`, and `yellow`
+ --> src/venv.rs:4:40
+  |
+4 | use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                        ^^^^^^  ^^^^  ^^^^  ^^^^  ^^^
+
+warning: unused import: `bold`
+ --> src/daemon.rs:5:60
+  |
+5 | use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                            ^^^^
+
+warning: unused import: `Process`
+  --> src/daemon.rs:12:20
+   |
+12 | use sysinfo::{Pid, Process, System};
+   |                    ^^^^^^^
+
+warning: unused import: `Process`
+ --> src/process_monitor.rs:7:20
+  |
+7 | use sysinfo::{Pid, Process, System};
+  |                    ^^^^^^^
+
+warning: unused imports: `bold`, `dim`, `red`, and `yellow`
+ --> src/visual_installer.rs:5:28
+  |
+5 | use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                            ^^^         ^^^^^^              ^^^^  ^^^
+
+warning: unused import: `PathBuf`
+ --> src/handler.rs:2:23
+  |
+2 | use std::path::{Path, PathBuf};
+  |                       ^^^^^^^
+
+warning: unused import: `InstallerBackend`
+ --> src/handler.rs:8:42
+  |
+8 | use crate::installer::{PackageInstaller, InstallerBackend};
+  |                                          ^^^^^^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+ --> src/system_libs.rs:1:5
+  |
+1 | use anyhow::Result;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `std::path::Path`
+ --> src/system_libs.rs:4:5
+  |
+4 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `blue`
+ --> src/recommender.rs:3:48
+  |
+3 | use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                ^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/hallucinatory_fangs.rs:3:5
+  |
+3 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::os::unix::io::AsRawFd`
+   --> src/native/watch.rs:134:9
+    |
+134 |     use std::os::unix::io::AsRawFd;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fs::File`
+   --> src/native/watch.rs:135:9
+    |
+135 |     use std::fs::File;
+    |         ^^^^^^^^^^^^^
+
+warning: unused imports: `find_executable` and `has_executable`
+  --> src/native/mod.rs:17:17
+   |
+17 | pub use which::{find_executable, has_executable};
+   |                 ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unused imports: `generate_id`, `generate_short_id`, `generate_sortable_id`, and `generate_uuid_v4`
+  --> src/native/mod.rs:18:14
+   |
+18 | pub use id::{generate_id, generate_short_id, generate_uuid_v4, generate_sortable_id};
+   |              ^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Pattern` and `matches as pattern_matches`
+  --> src/native/mod.rs:19:19
+   |
+19 | pub use pattern::{Pattern, matches as pattern_matches};
+   |                   ^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `DateTime` and `format_duration`
+  --> src/native/mod.rs:20:20
+   |
+20 | pub use datetime::{DateTime, format_duration};
+   |                    ^^^^^^^^  ^^^^^^^^^^^^^^^
+
+warning: unused imports: `WatchEvent`, `Watcher`, and `watch_file`
+  --> src/native/mod.rs:23:17
+   |
+23 | pub use watch::{Watcher, WatchEvent, watch_file};
+   |                 ^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^
+
+warning: unused imports: `Color`, `StyledText`, `blue`, `bold`, `cyan`, `dim`, `green`, `red`, and `yellow`
+  --> src/native/mod.rs:24:17
+   |
+24 | pub use style::{StyledText, Color, red, green, yellow, blue, cyan, bold, dim};
+   |                 ^^^^^^^^^^  ^^^^^  ^^^  ^^^^^  ^^^^^^  ^^^^  ^^^^  ^^^^  ^^^
+
+warning: unused imports: `MultiProgress`, `ProgressBar`, and `Spinner`
+  --> src/native/mod.rs:25:20
+   |
+25 | pub use progress::{ProgressBar, Spinner, MultiProgress};
+   |                    ^^^^^^^^^^^  ^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused imports: `cache_dir`, `config_dir`, `data_dir`, `home_dir`, and `temp_dir`
+  --> src/native/mod.rs:26:16
+   |
+26 | pub use dirs::{home_dir, cache_dir, config_dir, data_dir, temp_dir};
+   |                ^^^^^^^^  ^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^  ^^^^^^^^
+
+warning: unused imports: `compute as md5_compute` and `format_hash as md5_format`
+  --> src/native/mod.rs:27:16
+   |
+27 | pub use hash::{compute as md5_compute, format_hash as md5_format};
+   |                ^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no function or associated item named `new_spinner` found for struct `ProgressBar` in the current scope
+  --> src/installer.rs:64:31
+   |
+64 |         let pb = ProgressBar::new_spinner();
+   |                               ^^^^^^^^^^^ function or associated item not found in `ProgressBar`
+   |
+  ::: src/native/progress.rs:9:1
+   |
+ 9 | pub struct ProgressBar {
+   | ---------------------- function or associated item `new_spinner` not found for this struct
+   |
+note: if you're trying to build a new `ProgressBar`, consider using `ProgressBar::new` which returns `ProgressBar`
+  --> src/native/progress.rs:30:5
+   |
+30 |     pub fn new(total: u64) -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src/installer.rs:137:17
+    |
+137 |                 green("All dependencies installed!").to_string()
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&str`, found `String`
+    |
+help: consider borrowing here
+    |
+137 |                 &green("All dependencies installed!").to_string()
+    |                 +
+
+error[E0308]: mismatched types
+   --> src/installer.rs:139:17
+    |
+139 |                 yellow(format!("Completed with {} errors", errors.len())).to_string()
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&str`, found `String`
+    |
+help: consider borrowing here
+    |
+139 |                 &yellow(format!("Completed with {} errors", errors.len())).to_string()
+    |                 +
+
+error[E0599]: no function or associated item named `new_spinner` found for struct `ProgressBar` in the current scope
+   --> src/installer.rs:155:31
+    |
+155 |         let pb = ProgressBar::new_spinner();
+    |                               ^^^^^^^^^^^ function or associated item not found in `ProgressBar`
+    |
+   ::: src/native/progress.rs:9:1
+    |
+  9 | pub struct ProgressBar {
+    | ---------------------- function or associated item `new_spinner` not found for this struct
+    |
+note: if you're trying to build a new `ProgressBar`, consider using `ProgressBar::new` which returns `ProgressBar`
+   --> src/native/progress.rs:30:5
+    |
+ 30 |     pub fn new(total: u64) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `md5`
+   --> src/installer.rs:324:41
+    |
+324 |         let cache_key = format!("{:x}", md5::compute(url.as_bytes()));
+    |                                         ^^^ use of unresolved module or unlinked crate `md5`
+    |
+    = help: if you wanted to use a crate named `md5`, use `cargo add md5` to add it to your `Cargo.toml`
+
+warning: unused variable: `package`
+   --> src/installer.rs:506:43
+    |
+506 |     async fn uninstall_with_native(&self, package: &str) -> Result<()> {
+    |                                           ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_package`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+error[E0599]: no function or associated item named `new_spinner` found for struct `ProgressBar` in the current scope
+  --> src/venv.rs:69:31
+   |
+69 |         let pb = ProgressBar::new_spinner();
+   |                               ^^^^^^^^^^^ function or associated item not found in `ProgressBar`
+   |
+  ::: src/native/progress.rs:9:1
+   |
+ 9 | pub struct ProgressBar {
+   | ---------------------- function or associated item `new_spinner` not found for this struct
+   |
+note: if you're trying to build a new `ProgressBar`, consider using `ProgressBar::new` which returns `ProgressBar`
+  --> src/native/progress.rs:30:5
+   |
+30 |     pub fn new(total: u64) -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no function or associated item named `new_spinner` found for struct `ProgressBar` in the current scope
+   --> src/venv.rs:109:31
+    |
+109 |         let pb = ProgressBar::new_spinner();
+    |                               ^^^^^^^^^^^ function or associated item not found in `ProgressBar`
+    |
+   ::: src/native/progress.rs:9:1
+    |
+  9 | pub struct ProgressBar {
+    | ---------------------- function or associated item `new_spinner` not found for this struct
+    |
+note: if you're trying to build a new `ProgressBar`, consider using `ProgressBar::new` which returns `ProgressBar`
+   --> src/native/progress.rs:30:5
+    |
+ 30 |     pub fn new(total: u64) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `md5`
+   --> src/installer.rs:871:43
+    |
+871 |         let actual_hash = format!("{:x}", md5::compute(bytes));
+    |                                           ^^^ use of unresolved module or unlinked crate `md5`
+    |
+    = help: if you wanted to use a crate named `md5`, use `cargo add md5` to add it to your `Cargo.toml`
+
+error[E0277]: the trait bound `std::string::String: From<StyledText>` is not satisfied
+   --> src/recommender.rs:110:11
+    |
+110 | {}", cyan(bold("📦 Top Recommendations:")));
+    |      ---- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `From<StyledText>` is not implemented for `std::string::String`
+    |      |
+    |      required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `From<T>`:
+              `std::string::String` implements `From<&mut str>`
+              `std::string::String` implements `From<&std::string::String>`
+              `std::string::String` implements `From<&str>`
+              `std::string::String` implements `From<Box<str>>`
+              `std::string::String` implements `From<Cow<'_, str>>`
+              `std::string::String` implements `From<char>`
+              `std::string::String` implements `From<clap::Id>`
+              `std::string::String` implements `From<clap::builder::Str>`
+              `std::string::String` implements `From<reqwest::Url>`
+    = note: required for `StyledText` to implement `Into<std::string::String>`
+note: required by a bound in `cyan`
+   --> src/native/style.rs:207:16
+    |
+207 | pub fn cyan<S: Into<String>>(text: S) -> StyledText {
+    |                ^^^^^^^^^^^^ required by this bound in `cyan`
+
+error[E0277]: the trait bound `std::string::String: From<StyledText>` is not satisfied
+   --> src/recommender.rs:115:22
+    |
+115 |                 bold(green(&rec.name)),
+    |                 ---- ^^^^^^^^^^^^^^^^ the trait `From<StyledText>` is not implemented for `std::string::String`
+    |                 |
+    |                 required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `From<T>`:
+              `std::string::String` implements `From<&mut str>`
+              `std::string::String` implements `From<&std::string::String>`
+              `std::string::String` implements `From<&str>`
+              `std::string::String` implements `From<Box<str>>`
+              `std::string::String` implements `From<Cow<'_, str>>`
+              `std::string::String` implements `From<char>`
+              `std::string::String` implements `From<clap::Id>`
+              `std::string::String` implements `From<clap::builder::Str>`
+              `std::string::String` implements `From<reqwest::Url>`
+    = note: required for `StyledText` to implement `Into<std::string::String>`
+note: required by a bound in `bold`
+   --> src/native/style.rs:215:16
+    |
+215 | pub fn bold<S: Into<String>>(text: S) -> StyledText {
+    |                ^^^^^^^^^^^^ required by this bound in `bold`
+
+error[E0277]: the trait bound `std::string::String: From<StyledText>` is not satisfied
+   --> src/recommender.rs:157:32
+    |
+157 |         println!("   {}", bold(green(&recommendations[0].name)));
+    |                           ---- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `From<StyledText>` is not implemented for `std::string::String`
+    |                           |
+    |                           required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `From<T>`:
+              `std::string::String` implements `From<&mut str>`
+              `std::string::String` implements `From<&std::string::String>`
+              `std::string::String` implements `From<&str>`
+              `std::string::String` implements `From<Box<str>>`
+              `std::string::String` implements `From<Cow<'_, str>>`
+              `std::string::String` implements `From<char>`
+              `std::string::String` implements `From<clap::Id>`
+              `std::string::String` implements `From<clap::builder::Str>`
+              `std::string::String` implements `From<reqwest::Url>`
+    = note: required for `StyledText` to implement `Into<std::string::String>`
+note: required by a bound in `bold`
+   --> src/native/style.rs:215:16
+    |
+215 | pub fn bold<S: Into<String>>(text: S) -> StyledText {
+    |                ^^^^^^^^^^^^ required by this bound in `bold`
+
+Some errors have detailed explanations: E0277, E0308, E0425, E0432, E0433, E0599.
+For more information about an error, try `rustc --explain E0277`.
+warning: `snakepit` (bin "snakepit") generated 27 warnings
+error: could not compile `snakepit` (bin "snakepit") due to 27 previous errors; 27 warnings emitted

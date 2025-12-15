@@ -14,6 +14,8 @@ A dynamic Rust-based Python dependency installer that provides intelligent packa
 - **Shell Integration**: Bash integration with auto-install and command retry (new!)
 - **Daemon Support**: Background process monitoring and automatic installation
 - **Zero-config Auto-install**: Install missing packages on-demand without active venv
+- **Zero Dependencies**: Core functionality implemented in pure Rust with no external crate dependencies for critical paths
+- **Lightweight**: Minimal binary size and memory footprint
 
 ## Installation
 

@@ -1,8 +1,9 @@
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use console::style;
-use indicatif::{ProgressBar, ProgressStyle};
+use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
+use crate::native::progress::ProgressBar;
+use crate::native::which;
 
 #[derive(Debug, Clone)]
 pub enum VenvBackend {
@@ -14,25 +15,17 @@ pub enum VenvBackend {
 
 impl VenvBackend {
     pub fn detect() -> Self {
-        if Self::command_exists("conda") {
+        if which::has_executable("conda") {
             Self::Conda
-        } else if Self::command_exists("poetry") {
+        } else if which::has_executable("poetry") {
             Self::Poetry
-        } else if Self::command_exists("virtualenv") {
+        } else if which::has_executable("virtualenv") {
             Self::Virtualenv
         } else {
             Self::Venv
         }
     }
 
-    fn command_exists(command: &str) -> bool {
-        Command::new(command)
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok()
-    }
 }
 
 pub struct VirtualEnvironmentManager {
@@ -59,7 +52,7 @@ impl VirtualEnvironmentManager {
     }
 
     fn get_default_venv_path() -> PathBuf {
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = crate::native::dirs::home_dir() {
             home.join(".snakepit").join("venvs")
         } else {
             PathBuf::from(".snakepit").join("venvs")
@@ -73,13 +66,7 @@ impl VirtualEnvironmentManager {
             return Err(anyhow::anyhow!("Virtual environment '{}' already exists", name));
         }
 
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner:.green} {msg}")
-                .unwrap()
-                .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
-        );
+        let mut pb = ProgressBar::new_spinner();
         pb.set_message(format!("Creating virtual environment '{}'...", name));
 
         let result = match self.backend {
@@ -89,9 +76,9 @@ impl VirtualEnvironmentManager {
             VenvBackend::Poetry => self.create_with_poetry(&venv_path, python_version).await,
         };
 
-        pb.finish_with_message(format!("{} {}", 
-            style("✓").green(), 
-            style(format!("Created virtual environment '{}'", name)).green()
+        pb.finish_with_message(&format!("{} {}", 
+            green("✓"), 
+            green(format!("Created virtual environment '{}'", name))
         ));
 
         result
@@ -106,7 +93,7 @@ impl VirtualEnvironmentManager {
 
         let python_path = self.get_python_path(&venv_path)?;
         
-        println!("{}", style(format!("Virtual environment '{}' activated", name)).green());
+        println!("{}", green(format!("Virtual environment '{}' activated", name)));
         println!("Python path: {}", python_path.display());
         
         Ok(python_path)
@@ -119,20 +106,14 @@ impl VirtualEnvironmentManager {
             return Err(anyhow::anyhow!("Virtual environment '{}' does not exist", name));
         }
 
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner:.red} {msg}")
-                .unwrap()
-                .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
-        );
+        let mut pb = ProgressBar::new_spinner();
         pb.set_message(format!("Deleting virtual environment '{}'...", name));
 
         std::fs::remove_dir_all(&venv_path)?;
 
-        pb.finish_with_message(format!("{} {}", 
-            style("✓").red(), 
-            style(format!("Deleted virtual environment '{}'", name)).red()
+        pb.finish_with_message(&format!("{} {}", 
+            red("✓"), 
+            red(format!("Deleted virtual environment '{}'", name))
         ));
 
         Ok(())
@@ -160,6 +141,31 @@ impl VirtualEnvironmentManager {
 
     pub fn get_venv_path(&self, name: &str) -> PathBuf {
         self.base_path.join(name)
+    }
+
+    pub fn get_site_packages_path(&self, venv_path: &Path) -> Result<PathBuf> {
+        if cfg!(target_os = "windows") {
+            Ok(venv_path.join("Lib").join("site-packages"))
+        } else {
+            // Find pythonX.Y directory in lib/
+            let lib_path = venv_path.join("lib");
+            if !lib_path.exists() {
+                return Err(anyhow::anyhow!("lib directory not found in venv"));
+            }
+            
+            for entry in std::fs::read_dir(&lib_path)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_dir() {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        if name.starts_with("python") {
+                            return Ok(path.join("site-packages"));
+                        }
+                    }
+                }
+            }
+            Err(anyhow::anyhow!("Could not find python directory in lib"))
+        }
     }
 
     fn get_python_path(&self, venv_path: &Path) -> Result<PathBuf> {
@@ -288,3 +294,4 @@ mod tests {
         assert!(path.to_string_lossy().contains("snakepit"));
     }
 }
+

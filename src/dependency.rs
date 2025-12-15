@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use anyhow::Result;
-use regex::Regex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dependency {
@@ -100,31 +99,34 @@ impl ProjectDependencies {
             return None;
         }
 
-        // Handle different requirement formats
-        let version_regex = Regex::new(r"([a-zA-Z0-9_-]+)([><=!]+)([0-9.]+)").ok()?;
+        // Handle different requirement formats manually
+        // Operators to look for, longest first
+        let operators = [">=", "<=", "==", "!=", "~=", ">", "<"];
         
-        if let Some(captures) = version_regex.captures(line) {
-            let name = captures.get(1)?.as_str().to_string();
-            let constraint = captures.get(2)?.as_str().to_string();
-            let version = captures.get(3)?.as_str().to_string();
-            
-            Some(Dependency {
-                name,
-                version: Some(version),
-                version_constraint: Some(constraint),
-                is_dev: false,
-                source: None,
-            })
-        } else {
-            // Simple package name without version
-            Some(Dependency {
-                name: line.to_string(),
-                version: None,
-                version_constraint: None,
-                is_dev: false,
-                source: None,
-            })
+        for op in &operators {
+            if let Some(idx) = line.find(op) {
+                let name = line[..idx].trim().to_string();
+                let constraint = op.to_string();
+                let version = line[idx+op.len()..].trim().to_string();
+                
+                return Some(Dependency {
+                    name,
+                    version: Some(version),
+                    version_constraint: Some(constraint),
+                    is_dev: false,
+                    source: None,
+                });
+            }
         }
+
+        // Simple package name without version
+        Some(Dependency {
+            name: line.to_string(),
+            version: None,
+            version_constraint: None,
+            is_dev: false,
+            source: None,
+        })
     }
 
     pub fn to_requirements_txt(&self) -> String {

@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use console::style;
+use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
 
 /// Visual installer that uses the snake game GUI
 pub struct VisualInstaller {
@@ -43,7 +43,7 @@ impl VisualInstaller {
             package.to_string()
         };
 
-        println!("{}", style("🐍 Launching visual installer...").cyan());
+        println!("{}", cyan("🐍 Launching visual installer..."));
 
         let mut cmd = Command::new(&self.vip_path);
         cmd.arg("install")
@@ -67,7 +67,7 @@ impl VisualInstaller {
         let status = child.wait()?;
 
         if status.success() {
-            println!("{}", style("✓ Package installed successfully!").green());
+            println!("{}", green("✓ Package installed successfully!"));
             Ok(())
         } else {
             Err(anyhow::anyhow!("Installation failed with exit code: {}", status.code().unwrap_or(-1)))
@@ -82,14 +82,14 @@ impl VisualInstaller {
             package.to_string()
         };
 
-        println!("{}", style("Installing package (classic mode)...").blue());
+        println!("{}", blue("Installing package (classic mode)..."));
 
         let output = Command::new("python3")
             .args(&["-m", "pip", "install", &package_spec])
             .output()?;
 
         if output.status.success() {
-            println!("{}", style("✓ Package installed successfully!").green());
+            println!("{}", green("✓ Package installed successfully!"));
             Ok(())
         } else {
             let error_msg = String::from_utf8_lossy(&output.stderr);
@@ -105,7 +105,7 @@ impl VisualInstaller {
 
         if self.use_gui && packages.len() > 1 {
             // Use VIP for batch installation
-            println!("{}", style(format!("🐍 Installing {} packages with visualization...", packages.len())).cyan());
+            println!("{}", cyan(format!("🐍 Installing {} packages with visualization...", packages.len())));
 
             let mut cmd = Command::new(&self.vip_path);
             cmd.arg("install");
@@ -119,7 +119,7 @@ impl VisualInstaller {
             let status = cmd.status()?;
 
             if status.success() {
-                println!("{}", style("✓ All packages installed successfully!").green());
+                println!("{}", green("✓ All packages installed successfully!"));
                 Ok(())
             } else {
                 Err(anyhow::anyhow!("Batch installation failed"))

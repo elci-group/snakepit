@@ -1,13 +1,13 @@
 use anyhow::Result;
-use regex::Regex;
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use sysinfo::{Pid, Process, System};
+use sysinfo::{Pid, System};
 use tokio::fs;
 use tokio::sync::RwLock;
 use tokio::time::sleep;
+use crate::native::datetime::DateTime;
 
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
@@ -19,11 +19,11 @@ pub struct ProcessInfo {
     pub error_count: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ModuleError {
     pub module_name: String,
     pub error_message: String,
-    pub process_pid: Pid,
+    pub process_pid: u32,
     pub timestamp: SystemTime,
     pub resolved: bool,
 }
@@ -32,25 +32,13 @@ pub struct ModuleError {
 pub struct ProcessMonitor {
     system: Arc<RwLock<System>>,
     python_processes: Arc<RwLock<HashMap<Pid, ProcessInfo>>>,
-    error_patterns: Vec<Regex>,
-    missing_module_pattern: Regex,
 }
 
 impl ProcessMonitor {
     pub fn new() -> Self {
-        let missing_module_pattern = Regex::new(r"ModuleNotFoundError: No module named '([^']+)'").unwrap();
-        
-        let error_patterns = vec![
-            Regex::new(r"ImportError: No module named '([^']+)'").unwrap(),
-            Regex::new(r"ModuleNotFoundError: No module named '([^']+)'").unwrap(),
-            Regex::new(r"ImportError: cannot import name '([^']+)'").unwrap(),
-        ];
-
         Self {
             system: Arc::new(RwLock::new(System::new_all())),
             python_processes: Arc::new(RwLock::new(HashMap::new())),
-            error_patterns,
-            missing_module_pattern,
         }
     }
 
@@ -66,7 +54,7 @@ impl ProcessMonitor {
         }
     }
 
-    async fn scan_processes(&self) -> Result<()> {
+    pub async fn scan_processes(&self) -> Result<()> {
         let mut system = self.system.write().await;
         system.refresh_processes();
 
@@ -182,7 +170,7 @@ impl ProcessMonitor {
         let error = ModuleError {
             module_name: module_name.clone(),
             error_message: format!("Missing module detected in process {}", pid),
-            process_pid: pid,
+            process_pid: pid.as_u32(),
             timestamp: SystemTime::now(),
             resolved: false,
         };
@@ -199,7 +187,7 @@ impl ProcessMonitor {
     async fn log_module_error(&self, error: &ModuleError) -> Result<()> {
         let log_entry = format!(
             "[{}] PID: {} - Missing module: {} - Error: {}\n",
-            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S"),
+            DateTime::now().to_string(),
             error.process_pid,
             error.module_name,
             error.error_message
@@ -292,15 +280,7 @@ impl StraceMonitor {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_missing_module_pattern() {
-        let monitor = ProcessMonitor::new();
-        let test_error = "ModuleNotFoundError: No module named 'requests'";
-        
-        if let Some(captures) = monitor.missing_module_pattern.captures(test_error) {
-            assert_eq!(captures.get(1).unwrap().as_str(), "requests");
-        }
-    }
+
 
     #[tokio::test]
     async fn test_process_monitor_creation() {

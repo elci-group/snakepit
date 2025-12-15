@@ -50,7 +50,7 @@ vip-status() {
     echo "  Pygame available: $(python3 -c 'import pygame; print("yes")' 2>/dev/null || echo 'no')"
 }
 
-echo "🐍 VIP (Visual Install for Python) loaded!"
-echo "   Use 'pip install <package>' for visual installations"
-echo "   Use 'vip-status' to check configuration"
-echo "   Use 'vip-gui-off' to disable visualization"
+#echo "🐍 VIP (Visual Install for Python) loaded!"
+#echo "   Use 'pip install <package>' for visual installations"
+#echo "   Use 'vip-status' to check configuration"
+#echo "   Use 'vip-gui-off' to disable visualization"

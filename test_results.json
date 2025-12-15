@@ -1,0 +1,98 @@
+{
+  "installation_speed": {
+    "pure_python_requests": {
+      "success": true,
+      "duration": 6.144350290298462,
+      "category": "pure_python"
+    },
+    "pure_python_click": {
+      "success": true,
+      "duration": 4.562888145446777,
+      "category": "pure_python"
+    },
+    "pure_python_colorama": {
+      "success": true,
+      "duration": 8.82737922668457,
+      "category": "pure_python"
+    },
+    "pure_python_pyyaml": {
+      "success": true,
+      "duration": 6.109734535217285,
+      "category": "pure_python"
+    },
+    "binary_small_pillow": {
+      "success": false,
+      "duration": 300,
+      "category": "binary_small"
+    },
+    "binary_small_cryptography": {
+      "success": true,
+      "duration": 7.634322166442871,
+      "category": "binary_small"
+    },
+    "binary_large_numpy": {
+      "success": true,
+      "duration": 12.431487321853638,
+      "category": "binary_large"
+    },
+    "binary_large_pandas": {
+      "success": true,
+      "duration": 37.6850049495697,
+      "category": "binary_large"
+    },
+    "complex_deps_flask": {
+      "success": true,
+      "duration": 6.018734455108643,
+      "category": "complex_deps"
+    },
+    "complex_deps_django": {
+      "success": true,
+      "duration": 9.91601037979126,
+      "category": "complex_deps"
+    }
+  },
+  "cache_performance": {
+    "cold_time": 4.855091333389282,
+    "warm_time": 5.303194999694824,
+    "speedup": 0.9155030757248549
+  },
+  "parallel_efficiency": {
+    "sequential_total": 14.557905673980713,
+    "package_count": 3,
+    "avg_per_package": 4.852635224660237
+  },
+  "ai_features": {},
+  "error_handling": {
+    "detection": {
+      "success": false,
+      "duration": 0.0037186145782470703
+    }
+  },
+  "system_compatibility": {
+    "numpy": {
+      "success": true,
+      "duration": 11.158771276473999,
+      "description": "binary with platform-specific wheels"
+    },
+    "pillow": {
+      "success": false,
+      "duration": 300,
+      "description": "binary with image library dependencies"
+    },
+    "cryptography": {
+      "success": true,
+      "duration": 6.715562105178833,
+      "description": "binary with OpenSSL dependencies"
+    },
+    "syslib_psycopg2-binary": {
+      "success": false,
+      "detection_triggered": false,
+      "duration": 300
+    },
+    "syslib_mysqlclient": {
+      "success": false,
+      "detection_triggered": false,
+      "duration": 8.336894273757935
+    }
+  }
+}

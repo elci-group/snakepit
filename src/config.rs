@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use anyhow::Result;
-use dirs;
+use crate::native::dirs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnakepitConfig {
@@ -248,3 +248,4 @@ mod tests {
         assert_eq!(config.cache_enabled, Some(false));
     }
 }
+
