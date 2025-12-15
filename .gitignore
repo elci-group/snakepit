@@ -1,18 +1,30 @@
-# Rust
+# Rust Build Artifacts
 /target/
-Cargo.lock
 **/*.rs.bk
 *.pdb
+Cargo.lock
 
-# IDE
+# Rust Debugging
+*.dSYM/
+*.dwp
+
+# IDE and Editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+*.iml
+.project
+.classpath
+.settings/
+.vscode-test/
+
+# Environment Variables
 .env
 .env.local
+.env.*.local
 
 # Python
 __pycache__/
@@ -32,34 +44,156 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
+*.pyc
+*.pyo
 
-# Virtual environments
+# Virtual Environments
 venv/
 ENV/
 env/
 .venv/
 .snakepit/
-
-# Logs
-*.log
-logs/
-
-# OS
-Thumbs.db
-.DS_Store
+virtualenv/
 
 # Testing
 .coverage
+.coverage.*
 htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+.hypothesis/
+*.cover
+.cache
+coverage.xml
+*.coveragerc
+nosetests.xml
+test-results/
+junit.xml
 
-# Project specific
+# Logs and Temporary Files
+*.log
+logs/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+build_log.txt
+
+# OS Files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Documentation Build
+_build/
+.doctrees/
+site/
+
+# Project-Specific (User Config - exclude from repo)
 snakepit.toml
-requirements.txt
 .snakepit_bashrc_guide.md
-remove
 
-# Security reports
+# Benchmarks and Profiling
+benchmarks/results/
+*.prof
+*.perf
+flamegraph.svg
+
+# Security and Secrets
 security-reports/
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+.secrets/
+
+# Artifacts Directory (keep structure, ignore contents)
+.gemini/
+.grok/
+
+# Test Files and Outputs
+test_*.py
+test_*.rs
+*_test.py
+*_test.rs
+test_results.json
+test_output/
+
+# Editor-Specific (JetBrains, Sublime, Vim, Emacs)
+.idea/
+*.sublime-workspace
+*.sublime-project
+.ropeproject
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# Node (if any JS tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# Compiled Documentation
+docs/_build/
+docs/.buildinfo
+
+# Lock files (keep only Cargo.toml)
+poetry.lock
+Pipfile.lock
+
+# macOS specific
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows specific
+$RECYCLE.BIN/
+*.lnk
+
+# Keep essential files (override exclusions if needed)
+!.gitkeep
+!README.md
+!LICENSE
+!Cargo.toml
+!pyproject.toml
+!setup.py
+
+# Keep documentation
+!docs/**/*.md
+!report_chapters/**/*.md
+
+# Keep examples
+!examples/**/*
