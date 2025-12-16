@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::process::Command;
 use serde::{Serialize, Deserialize};
 
-use crate::native::which;
+use snakegg::native::which;
 
 pub struct SolidSnakeEngine {
     adb_path: String,

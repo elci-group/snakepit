@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs;
 use crate::daemon::{ModuleError, DaemonConfig};
-use crate::native::dirs;
-use crate::native::style::{dim, green};
+use snakegg::native::dirs;
+use snakegg::native::style::{dim, green};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SnakeskinState {

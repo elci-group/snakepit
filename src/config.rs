@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use anyhow::Result;
-use crate::native::dirs;
+use snakegg::native::dirs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnakepitConfig {

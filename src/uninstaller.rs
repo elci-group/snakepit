@@ -2,10 +2,10 @@ use anyhow::{Result, Context};
 use serde::{Serialize, Deserialize};
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap, HashSet};
-use crate::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
-use crate::native::dirs;
-use crate::native::datetime::DateTime;
-use crate::charmer::SnakeCharmer;
+use snakegg::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
+use snakegg::native::dirs;
+use snakegg::native::datetime::DateTime;
+use snakegg::charmer::SnakeCharmer;
 use crate::installer::{PackageInstaller, InstallerBackend};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,7 +135,7 @@ impl Uninstaller {
         let package_path = PathBuf::from(&location);
 
         // 2. Zip the package directory
-        let id = crate::native::id::new();
+        let id = snakegg::native::id::new();
         let timestamp = DateTime::now().to_string();
         let snapshot_path = self.snapshots_dir.join(format!("{}_{}.zip", package, id));
         

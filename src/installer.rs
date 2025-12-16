@@ -1,8 +1,8 @@
 use crate::resolver::ResolvedDependency;
 use anyhow::Result;
 use std::process::{Command, Stdio};
-use crate::native::progress::ProgressBar;
-use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
+use snakegg::native::progress::ProgressBar;
+use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
 
 #[derive(Debug, Clone)]
 pub enum InstallerBackend {
@@ -315,7 +315,7 @@ impl PackageInstaller {
         use std::io::Read;
         
         // Create cache directory
-        let cache_dir = crate::native::dirs::cache_dir()
+        let cache_dir = snakegg::native::dirs::cache_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find cache directory"))?
             .join("snakepit")
             .join("wheels");
@@ -323,7 +323,7 @@ impl PackageInstaller {
         std::fs::create_dir_all(&cache_dir)?;
 
         // Use URL hash as cache key (more reliable than filename which might have version conflicts)
-        let cache_key = crate::native::hash::compute_hex(url.as_bytes());
+        let cache_key = snakegg::native::hash::compute_hex(url.as_bytes());
         let cache_path = cache_dir.join(format!("{}.whl", cache_key));
 
         // Check cache
@@ -349,7 +349,7 @@ impl PackageInstaller {
         use std::time::SystemTime;
         
         // Create metadata cache directory
-        let cache_dir = crate::native::dirs::cache_dir()
+        let cache_dir = snakegg::native::dirs::cache_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find cache directory"))?
             .join("snakepit")
             .join("metadata");
@@ -409,7 +409,7 @@ impl PackageInstaller {
                 Ok(site)
             }
         } else {
-            let home = crate::native::dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+            let home = snakegg::native::dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
             let mut site = home.join(".local").join("lib").join("python3.10").join("site-packages");
             if !site.exists() {
                 let lib = home.join(".local").join("lib");
@@ -533,7 +533,7 @@ impl PackageInstaller {
                 site
             }
         } else {
-             let home = crate::native::dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+             let home = snakegg::native::dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
             let mut site = home.join(".local").join("lib").join("python3.10").join("site-packages");
              if !site.exists() {
                  let lib = home.join(".local").join("lib");
@@ -871,7 +871,7 @@ impl PackageInstaller {
     // Helper: Verify wheel integrity using SHA256 or MD5
     fn verify_wheel_integrity(bytes: &[u8], sha256: Option<&str>, md5: Option<&str>) -> Result<()> {
         if let Some(expected) = sha256 {
-            let actual = crate::native::hash::compute_sha256_hex(bytes);
+            let actual = snakegg::native::hash::compute_sha256_hex(bytes);
             if actual != expected {
                 return Err(anyhow::anyhow!(
                     "SHA256 integrity check failed: expected {}, got {}",
@@ -883,7 +883,7 @@ impl PackageInstaller {
         }
         
         if let Some(expected) = md5 {
-            let actual = crate::native::hash::compute_hex(bytes);
+            let actual = snakegg::native::hash::compute_hex(bytes);
             if actual != expected {
                 return Err(anyhow::anyhow!(
                     "MD5 integrity check failed: expected {}, got {}",
@@ -949,10 +949,32 @@ impl WheelSelector {
     fn new() -> Self {
         let os = std::env::consts::OS.to_string();
         let arch = std::env::consts::ARCH.to_string();
-        // TODO: Dynamically detect python version. For now, assume 3.10 as per user env.
-        let python_version = "310".to_string(); 
+        let python_version = Self::detect_python_version();
         
         Self { os, arch, python_version }
+    }
+
+    fn detect_python_version() -> String {
+        // Try to detect from python3 or python command
+        let output = std::process::Command::new("python3")
+            .arg("--version")
+            .output()
+            .or_else(|_| std::process::Command::new("python").arg("--version").output());
+
+        if let Ok(output) = output {
+            let version_str = String::from_utf8_lossy(&output.stdout);
+            // Expected format: "Python 3.10.12"
+            if let Some(version) = version_str.split_whitespace().last() {
+                let parts: Vec<&str> = version.split('.').collect();
+                if parts.len() >= 2 {
+                    // Return as "310", "311", etc.
+                    return format!("{}{}", parts[0], parts[1]);
+                }
+            }
+        }
+        
+        // Fallback to 3.10 if detection fails
+        "310".to_string()
     }
 
     fn score_wheel(&self, filename: &str) -> i32 {

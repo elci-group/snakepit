@@ -1,0 +1,420 @@
+warning: unused import: `anyhow`
+ --> snakegg/src/snake_egg/protein.rs:1:22
+  |
+1 | ...t, anyhow};
+  |       ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PathBuf`
+ --> snakegg/src/snake_egg/protein.rs:3:23
+  |
+3 | ...h, PathBuf};
+  |       ^^^^^^^
+
+warning: unused import: `Path`
+ --> snakegg/src/snake_egg/nest.rs:3:17
+  |
+3 | ...::{Path, P...
+  |       ^^^^
+
+warning: unused import: `GeminiModel`
+  --> snakegg/src/snake_egg/mother.rs:11:59
+   |
+11 | ...s, GeminiModel};
+   |       ^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+ --> snakegg/src/snake_egg/chrono_capacitus.rs:1:5
+  |
+1 | use anyhow::Result;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `crate::snake_egg::embryo::Embryo`
+ --> snakegg/src/snake_egg/schrodingers_shell.rs:6:5
+  |
+6 | use crate::snake_egg::embryo::Embryo;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `green`
+ --> snakegg/src/charmer.rs:7:41
+  |
+7 | ...w, green};
+  |       ^^^^^
+
+warning: unused import: `std::os::unix::io::AsRawFd`
+   --> snakegg/src/native/watch.rs:134:9
+    |
+134 | ...se std::os::unix::io::AsRawFd;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fs::File`
+   --> snakegg/src/native/watch.rs:135:9
+    |
+135 | ...se std::fs::File;
+    |       ^^^^^^^^^^^^^
+
+warning: unused import: `std::path::Path`
+ --> snakegg/src/native/undertaker.rs:2:5
+  |
+2 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `red`
+ --> snakegg/src/native/undertaker.rs:4:28
+  |
+4 | ...::{red, di...
+  |       ^^^
+
+warning: unused import: `std::time::SystemTime`
+ --> snakegg/src/native/undertaker.rs:5:5
+  |
+5 | use std::time::SystemTime;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `response`
+   --> snakegg/src/snake_egg/mother.rs:139:13
+    |
+139 | ...et response = ...
+    |       ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_response`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `response`
+   --> snakegg/src/snake_egg/mother.rs:194:13
+    |
+194 | ...et response = ...
+    |       ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_response`
+
+warning: unused variable: `module_path`
+   --> snakegg/src/snake_egg/mother.rs:265:31
+    |
+265 | ...f, module_path: &...
+    |       ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_module_path`
+
+warning: unused variable: `avg_temp`
+  --> snakegg/src/snake_egg/clutch.rs:60:13
+   |
+60 | ...et avg_temp: f...
+   |       ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_avg_temp`
+
+warning: variable does not need to be mutable
+  --> snakegg/src/snake_egg/protein.rs:48:13
+   |
+48 | ...et mut lines = ...
+   |       ----^^^^^
+   |       |
+   |       help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `nest` is never read
+  --> snakegg/src/snake_egg/mother.rs:15:5
+   |
+13 | pub struct Mother {
+   |            ------ field in this struct
+14 |     charmer: Arc<Mut...
+15 |     nest: Arc<Mutex<...
+   |     ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: structure field `generationConfig` should have a snake case name
+  --> snakegg/src/charmer.rs:23:5
+   |
+23 |     generationConfig: G...
+   |     ^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `generation_config`
+   |
+   = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> snakegg/src/native/watch.rs:81:19
+   |
+81 | ...ts(&self) -> EventIterator {
+   |       ^^^^^     ^^^^^^^^^^^^^ the same lifetime is hidden here
+   |       |
+   |       the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+   = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+   |
+81 |     pub fn events(&self) -> EventIterator<'_> {
+   |                                          ++++
+
+warning: `snakegg` (lib) generated 20 warnings (run `cargo fix --lib -p snakegg` to apply 14 suggestions)
+    Checking snakepit v0.2.0 (/home/adminx/snakepit)
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `charmer`
+   --> src/main.rs:137:46
+    |
+137 |                         if let Ok(charmer) = charmer::SnakeCharmer::new() {
+    |                                              ^^^^^^^ use of unresolved module or unlinked crate `charmer`
+    |
+    = help: if you wanted to use a crate named `charmer`, use `cargo add charmer` to add it to your `Cargo.toml`
+help: consider importing this struct
+    |
+  1 + use snakegg::charmer::SnakeCharmer;
+    |
+help: if you import `SnakeCharmer`, refer to it directly
+    |
+137 -                         if let Ok(charmer) = charmer::SnakeCharmer::new() {
+137 +                         if let Ok(charmer) = SnakeCharmer::new() {
+    |
+
+warning: unused imports: `blue` and `bold`
+ --> src/installer.rs:5:50
+  |
+5 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                  ^^^^        ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::io::Cursor`
+   --> src/installer.rs:184:13
+    |
+184 |         use std::io::Cursor;
+    |             ^^^^^^^^^^^^^^^
+
+warning: unused import: `zip::ZipArchive`
+   --> src/installer.rs:185:13
+    |
+185 |         use zip::ZipArchive;
+    |             ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::os::unix::fs::MetadataExt`
+   --> src/installer.rs:905:17
+    |
+905 |             use std::os::unix::fs::MetadataExt;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `blue`, `bold`, `cyan`, `dim`, and `yellow`
+ --> src/venv.rs:4:42
+  |
+4 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                          ^^^^^^  ^^^^  ^^^^  ^^^^  ^^^
+
+warning: unused import: `bold`
+ --> src/daemon.rs:5:62
+  |
+5 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                              ^^^^
+
+warning: unused import: `Process`
+  --> src/daemon.rs:12:20
+   |
+12 | use sysinfo::{Pid, Process, System};
+   |                    ^^^^^^^
+
+warning: unused imports: `bold`, `dim`, `red`, and `yellow`
+ --> src/visual_installer.rs:5:30
+  |
+5 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                              ^^^         ^^^^^^              ^^^^  ^^^
+
+warning: unused import: `PathBuf`
+ --> src/handler.rs:2:23
+  |
+2 | use std::path::{Path, PathBuf};
+  |                       ^^^^^^^
+
+warning: unused import: `InstallerBackend`
+ --> src/handler.rs:8:42
+  |
+8 | use crate::installer::{PackageInstaller, InstallerBackend};
+  |                                          ^^^^^^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+ --> src/system_libs.rs:1:5
+  |
+1 | use anyhow::Result;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `std::path::Path`
+ --> src/system_libs.rs:4:5
+  |
+4 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `blue`
+ --> src/recommender.rs:3:50
+  |
+3 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                  ^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/hallucinatory_fangs.rs:3:5
+  |
+3 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `green` and `yellow`
+ --> src/logger.rs:7:35
+  |
+7 | use snakegg::native::style::{dim, green, yellow};
+  |                                   ^^^^^  ^^^^^^
+
+warning: unused import: `HashSet`
+ --> src/solver.rs:2:33
+  |
+2 | use std::collections::{HashMap, HashSet};
+  |                                 ^^^^^^^
+
+warning: unused import: `std::fmt`
+ --> src/solver.rs:3:5
+  |
+3 | use std::fmt;
+  |     ^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/markers.rs:4:5
+  |
+4 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Context`
+ --> src/uninstaller.rs:1:22
+  |
+1 | use anyhow::{Result, Context};
+  |                      ^^^^^^^
+
+warning: unused import: `Path`
+ --> src/uninstaller.rs:3:17
+  |
+3 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused imports: `HashMap` and `HashSet`
+ --> src/uninstaller.rs:4:24
+  |
+4 | use std::collections::{HashMap, HashSet};
+  |                        ^^^^^^^  ^^^^^^^
+
+warning: unused imports: `bold`, `cyan`, `red`, and `yellow`
+ --> src/uninstaller.rs:5:30
+  |
+5 | use snakegg::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
+  |                              ^^^         ^^^^^^        ^^^^           ^^^^
+
+warning: unused import: `InstallerBackend`
+ --> src/uninstaller.rs:9:42
+  |
+9 | use crate::installer::{PackageInstaller, InstallerBackend};
+  |                                          ^^^^^^^^^^^^^^^^
+
+warning: unused import: `Nest`
+   --> src/main.rs:677:32
+    |
+677 |     use snakegg::{QuantumNest, Nest};
+    |                                ^^^^
+
+warning: unused import: `GestationMilestone`
+   --> src/main.rs:763:76
+    |
+763 |     use snakegg::{Nest, Mother, EggType, DNA, Identity, SelfActualization, GestationMilestone};
+    |                                                                            ^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `package`
+   --> src/installer.rs:508:43
+    |
+508 |     async fn uninstall_with_native(&self, package: &str) -> Result<()> {
+    |                                           ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_package`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `e`
+   --> src/daemon.rs:231:28
+    |
+231 |                 if let Err(e) = logger.sync().await {
+    |                            ^ help: if this is intentional, prefix it with an underscore: `_e`
+
+warning: variable does not need to be mutable
+   --> src/solver.rs:289:13
+    |
+289 |         let mut resolver = self.resolver.lock().unwrap();
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+error[E0599]: no variant or associated item named `Not` found for enum `Constraint` in the current scope
+   --> src/solver.rs:388:57
+    |
+ 13 | pub enum Constraint {
+    | ------------------- variant or associated item `Not` not found for this enum
+...
+388 |                                             Constraint::Not(Box::new(Constraint::Exact(v)))
+    |                                                         ^^^ variant or associated item not found in `Constraint`
+
+error[E0599]: no variant or associated item named `Not` found for enum `Constraint` in the current scope
+   --> src/solver.rs:411:53
+    |
+ 13 | pub enum Constraint {
+    | ------------------- variant or associated item `Not` not found for this enum
+...
+411 |                                         Constraint::Not(Box::new(Constraint::Exact(v)))
+    |                                                     ^^^ variant or associated item not found in `Constraint`
+
+warning: unused variable: `config`
+   --> src/main.rs:398:43
+    |
+398 | async fn uninstall_package(package: &str, config: &SnakepitConfig) -> Result<()> {
+    |                                           ^^^^^^ help: if this is intentional, prefix it with an underscore: `_config`
+
+warning: unused variable: `egg_type`
+   --> src/main.rs:778:17
+    |
+778 |             let egg_type = match r#type.to_lowercase().as_str() {
+    |                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_egg_type`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> src/main.rs:139:41
+    |
+139 | ...                   Ok(Some(package)) => {
+    |                               ^^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+    = note: all local variables must have a statically known size
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> src/main.rs:139:36
+    |
+139 | ...                   Ok(Some(package)) => {
+    |                          ^^^^^^^^^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `std::prelude::v1::Some`
+   --> /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/core/src/option.rs:602:5
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> src/main.rs:153:36
+    |
+153 | ...                   Ok(None) => {
+    |                          ^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `std::prelude::v1::None`
+   --> /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/core/src/option.rs:598:5
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+   --> src/main.rs:138:77
+    |
+138 | ...                   match charmer.diagnose_error(&cmd_str, &stderr).await {
+    |                                                                       ^^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `std::option::Option`
+   --> /rustc/ed61e7d7e242494fb7057f2657300d9e77bb4fcb/library/core/src/option.rs:594:1
+
+warning: variable does not need to be mutable
+   --> src/solver.rs:258:36
+    |
+258 |     fn resolve_conflict(&mut self, mut conflict: Rc<Incompatibility>) -> Result<()> {
+    |                                    ----^^^^^^^^
+    |                                    |
+    |                                    help: remove this `mut`
+
+Some errors have detailed explanations: E0277, E0433, E0599.
+For more information about an error, try `rustc --explain E0277`.
+warning: `snakepit` (bin "snakepit") generated 31 warnings
+error: could not compile `snakepit` (bin "snakepit") due to 7 previous errors; 31 warnings emitted

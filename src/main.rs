@@ -1,6 +1,6 @@
 use clap::Parser;
 use anyhow::{Result, Context};
-use crate::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
+use snakegg::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
 use std::path::Path;
 
 mod dependency;
@@ -14,7 +14,7 @@ mod process_monitor;
 mod visual_installer;
 mod sandbox;
 mod handler;
-mod charmer;
+
 mod resolver_ai;
 mod system_libs;
 mod recommender;
@@ -26,8 +26,7 @@ mod pep440;
 mod solver;
 mod markers;
 mod lockfile;
-mod snake_egg;
-mod native;
+
 
 use cli::Cli;
 use config::{SnakepitConfig, ProjectConfig};
@@ -37,6 +36,8 @@ use venv::{VirtualEnvironmentManager, VenvBackend};
 use resolver::DependencyResolver;
 use daemon::{DaemonManager, DaemonConfig};
 use handler::SnakepitHandler;
+
+use snakegg::charmer::SnakeCharmer;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -135,7 +136,7 @@ async fn main() -> Result<()> {
                         // If not a system library error, try Python package diagnosis
                         println!("{}", magenta("❌ Command failed. Consulting Snake Charmer..."));
 
-                        if let Ok(charmer) = charmer::SnakeCharmer::new() {
+                        if let Ok(charmer) = SnakeCharmer::new() {
                             match charmer.diagnose_error(&cmd_str, &stderr).await {
                                 Ok(Some(package)) => {
                                     println!("{}", magenta(format!("🐍 CHARMER: Diagnosis complete. Missing package: {}", package)));
@@ -675,7 +676,7 @@ async fn handle_daemon_config_command(command: cli::DaemonConfigCommands, daemon
 }
 
 async fn handle_nest_command(command: cli::NestCommands, _config: &SnakepitConfig) -> Result<()> {
-    use crate::snake_egg::{QuantumNest, Nest};
+    use snakegg::{QuantumNest, Nest};
     
     // Initialize or load nest
     let current_dir = std::env::current_dir()?;
@@ -708,9 +709,9 @@ async fn handle_nest_command(command: cli::NestCommands, _config: &SnakepitConfi
             println!("  Root: {}", nest_root.display());
             println!("  Total Shells: {}", nest.shells.len());
             
-            let manifested = nest.shells.iter().filter(|s| s.state == crate::snake_egg::QuantumState::Manifested).count();
-            let ethereal = nest.shells.iter().filter(|s| s.state == crate::snake_egg::QuantumState::Ethereal).count();
-            let superposition = nest.shells.iter().filter(|s| s.state == crate::snake_egg::QuantumState::Superposition).count();
+            let manifested = nest.shells.iter().filter(|s| s.state == snakegg::QuantumState::Manifested).count();
+            let ethereal = nest.shells.iter().filter(|s| s.state == snakegg::QuantumState::Ethereal).count();
+            let superposition = nest.shells.iter().filter(|s| s.state == snakegg::QuantumState::Superposition).count();
             
             println!("  Manifested (Local): {}", manifested);
             println!("  Ethereal (Git): {}", ethereal);
@@ -761,8 +762,8 @@ async fn handle_nest_command(command: cli::NestCommands, _config: &SnakepitConfi
 }
 
 async fn handle_egg_command(command: cli::EggCommands, _config: &SnakepitConfig) -> Result<()> {
-    use crate::snake_egg::{Nest, Mother, EggType, DNA, Identity, SelfActualization, GestationMilestone};
-    use crate::charmer::SnakeCharmer;
+    use snakegg::{Nest, Mother, EggType, DNA, Identity, SelfActualization, GestationMilestone};
+    use snakegg::charmer::SnakeCharmer;
     use std::sync::Arc;
     use tokio::sync::Mutex;
     use std::str::FromStr;
@@ -782,7 +783,7 @@ async fn handle_egg_command(command: cli::EggCommands, _config: &SnakepitConfig)
                 _ => EggType::Dual,
             };
             
-            let species_enum = crate::snake_egg::dna::Species::from_str(&species)?;
+            let species_enum = snakegg::Species::from_str(&species)?;
             
             println!("{}", blue(format!("Laying new {} egg: {}...", r#type, name)));
             
@@ -829,7 +830,7 @@ async fn handle_egg_command(command: cli::EggCommands, _config: &SnakepitConfig)
             let dna = DNA::load(&dna_path).await?;
             drop(nest_lock); // Release lock
             
-            let mut embryo = crate::snake_egg::Embryo::new(dna, organic_path, EggType::Organic);
+            let mut embryo = snakegg::Embryo::new(dna, organic_path, EggType::Organic);
             
             if watch {
                 println!("{}", blue(format!("Watching egg '{}' for evolution...", name)));
@@ -856,7 +857,7 @@ async fn handle_egg_command(command: cli::EggCommands, _config: &SnakepitConfig)
             }
             
             let dna = DNA::load(&dna_path).await?;
-            let embryo = crate::snake_egg::Embryo::new(dna, organic_path, EggType::Organic);
+            let embryo = snakegg::Embryo::new(dna, organic_path, EggType::Organic);
             
             println!("{}", blue(format!("Egg Status: {}", name)));
             println!("  Stage: {:?}", embryo.current_stage.milestone);
@@ -885,7 +886,7 @@ async fn handle_egg_command(command: cli::EggCommands, _config: &SnakepitConfig)
 }
 
 async fn handle_clutch_command(command: cli::ClutchCommands, _config: &SnakepitConfig) -> Result<()> {
-    use crate::snake_egg::Clutch;
+    use snakegg::Clutch;
     
     match command {
         cli::ClutchCommands::Create { name } => {

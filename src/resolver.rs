@@ -9,7 +9,7 @@ use std::fs;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use crate::native::dirs;
+use snakegg::native::dirs;
 
 #[derive(Clone)]
 struct DiskCache {

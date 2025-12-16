@@ -1,0 +1,951 @@
+warning: unused import: `anyhow`
+ --> snakegg/src/snake_egg/protein.rs:1:22
+  |
+1 | ...t, anyhow};
+  |       ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PathBuf`
+ --> snakegg/src/snake_egg/protein.rs:3:23
+  |
+3 | ...h, PathBuf};
+  |       ^^^^^^^
+
+warning: unused import: `Path`
+ --> snakegg/src/snake_egg/nest.rs:3:17
+  |
+3 | ...::{Path, P...
+  |       ^^^^
+
+warning: unused import: `GeminiModel`
+  --> snakegg/src/snake_egg/mother.rs:11:59
+   |
+11 | ...s, GeminiModel};
+   |       ^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+ --> snakegg/src/snake_egg/chrono_capacitus.rs:1:5
+  |
+1 | use anyhow::Result;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `crate::snake_egg::embryo::Embryo`
+ --> snakegg/src/snake_egg/schrodingers_shell.rs:6:5
+  |
+6 | use crate::snake_egg::embryo::Embryo;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `green`
+ --> snakegg/src/charmer.rs:7:41
+  |
+7 | ...w, green};
+  |       ^^^^^
+
+warning: unused import: `std::os::unix::io::AsRawFd`
+   --> snakegg/src/native/watch.rs:134:9
+    |
+134 | ...se std::os::unix::io::AsRawFd;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fs::File`
+   --> snakegg/src/native/watch.rs:135:9
+    |
+135 | ...se std::fs::File;
+    |       ^^^^^^^^^^^^^
+
+warning: unused import: `std::path::Path`
+ --> snakegg/src/native/undertaker.rs:2:5
+  |
+2 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `red`
+ --> snakegg/src/native/undertaker.rs:4:28
+  |
+4 | ...::{red, di...
+  |       ^^^
+
+warning: unused import: `std::time::SystemTime`
+ --> snakegg/src/native/undertaker.rs:5:5
+  |
+5 | use std::time::SystemTime;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `response`
+   --> snakegg/src/snake_egg/mother.rs:139:13
+    |
+139 | ...et response = ...
+    |       ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_response`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `response`
+   --> snakegg/src/snake_egg/mother.rs:194:13
+    |
+194 | ...et response = ...
+    |       ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_response`
+
+warning: unused variable: `module_path`
+   --> snakegg/src/snake_egg/mother.rs:265:31
+    |
+265 | ...f, module_path: &...
+    |       ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_module_path`
+
+warning: unused variable: `avg_temp`
+  --> snakegg/src/snake_egg/clutch.rs:60:13
+   |
+60 | ...et avg_temp: f...
+   |       ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_avg_temp`
+
+warning: variable does not need to be mutable
+  --> snakegg/src/snake_egg/protein.rs:48:13
+   |
+48 | ...et mut lines = ...
+   |       ----^^^^^
+   |       |
+   |       help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `nest` is never read
+  --> snakegg/src/snake_egg/mother.rs:15:5
+   |
+13 | pub struct Mother {
+   |            ------ field in this struct
+14 |     charmer: Arc<Mut...
+15 |     nest: Arc<Mutex<...
+   |     ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: structure field `generationConfig` should have a snake case name
+  --> snakegg/src/charmer.rs:23:5
+   |
+23 |     generationConfig: G...
+   |     ^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `generation_config`
+   |
+   = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> snakegg/src/native/watch.rs:81:19
+   |
+81 | ...ts(&self) -> EventIterator {
+   |       ^^^^^     ^^^^^^^^^^^^^ the same lifetime is hidden here
+   |       |
+   |       the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+   = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+   |
+81 |     pub fn events(&self) -> EventIterator<'_> {
+   |                                          ++++
+
+warning: `snakegg` (lib) generated 20 warnings (run `cargo fix --lib -p snakegg` to apply 14 suggestions)
+    Checking snakepit v0.2.0 (/home/adminx/snakepit)
+warning: unused imports: `blue` and `bold`
+ --> src/installer.rs:5:50
+  |
+5 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                  ^^^^        ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::io::Cursor`
+   --> src/installer.rs:184:13
+    |
+184 |         use std::io::Cursor;
+    |             ^^^^^^^^^^^^^^^
+
+warning: unused import: `zip::ZipArchive`
+   --> src/installer.rs:185:13
+    |
+185 |         use zip::ZipArchive;
+    |             ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::os::unix::fs::MetadataExt`
+   --> src/installer.rs:905:17
+    |
+905 |             use std::os::unix::fs::MetadataExt;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `blue`, `bold`, `cyan`, `dim`, and `yellow`
+ --> src/venv.rs:4:42
+  |
+4 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                          ^^^^^^  ^^^^  ^^^^  ^^^^  ^^^
+
+warning: unused import: `bold`
+ --> src/daemon.rs:5:62
+  |
+5 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                              ^^^^
+
+warning: unused import: `Process`
+  --> src/daemon.rs:12:20
+   |
+12 | use sysinfo::{Pid, Process, System};
+   |                    ^^^^^^^
+
+warning: unused imports: `bold`, `dim`, `red`, and `yellow`
+ --> src/visual_installer.rs:5:30
+  |
+5 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                              ^^^         ^^^^^^              ^^^^  ^^^
+
+warning: unused import: `PathBuf`
+ --> src/handler.rs:2:23
+  |
+2 | use std::path::{Path, PathBuf};
+  |                       ^^^^^^^
+
+warning: unused import: `InstallerBackend`
+ --> src/handler.rs:8:42
+  |
+8 | use crate::installer::{PackageInstaller, InstallerBackend};
+  |                                          ^^^^^^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+ --> src/system_libs.rs:1:5
+  |
+1 | use anyhow::Result;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `std::path::Path`
+ --> src/system_libs.rs:4:5
+  |
+4 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `blue`
+ --> src/recommender.rs:3:50
+  |
+3 | use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+  |                                                  ^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/hallucinatory_fangs.rs:3:5
+  |
+3 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `green` and `yellow`
+ --> src/logger.rs:7:35
+  |
+7 | use snakegg::native::style::{dim, green, yellow};
+  |                                   ^^^^^  ^^^^^^
+
+warning: unused import: `HashSet`
+ --> src/solver.rs:2:33
+  |
+2 | use std::collections::{HashMap, HashSet};
+  |                                 ^^^^^^^
+
+warning: unused import: `std::fmt`
+ --> src/solver.rs:3:5
+  |
+3 | use std::fmt;
+  |     ^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/markers.rs:4:5
+  |
+4 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Context`
+ --> src/uninstaller.rs:1:22
+  |
+1 | use anyhow::{Result, Context};
+  |                      ^^^^^^^
+
+warning: unused import: `Path`
+ --> src/uninstaller.rs:3:17
+  |
+3 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused imports: `HashMap` and `HashSet`
+ --> src/uninstaller.rs:4:24
+  |
+4 | use std::collections::{HashMap, HashSet};
+  |                        ^^^^^^^  ^^^^^^^
+
+warning: unused imports: `bold`, `cyan`, `red`, and `yellow`
+ --> src/uninstaller.rs:5:30
+  |
+5 | use snakegg::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
+  |                              ^^^         ^^^^^^        ^^^^           ^^^^
+
+warning: unused import: `InstallerBackend`
+ --> src/uninstaller.rs:9:42
+  |
+9 | use crate::installer::{PackageInstaller, InstallerBackend};
+  |                                          ^^^^^^^^^^^^^^^^
+
+warning: unused import: `Nest`
+   --> src/main.rs:679:32
+    |
+679 |     use snakegg::{QuantumNest, Nest};
+    |                                ^^^^
+
+warning: unused import: `GestationMilestone`
+   --> src/main.rs:765:76
+    |
+765 |     use snakegg::{Nest, Mother, EggType, DNA, Identity, SelfActualization, GestationMilestone};
+    |                                                                            ^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `package`
+   --> src/installer.rs:508:43
+    |
+508 |     async fn uninstall_with_native(&self, package: &str) -> Result<()> {
+    |                                           ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_package`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `e`
+   --> src/daemon.rs:231:28
+    |
+231 |                 if let Err(e) = logger.sync().await {
+    |                            ^ help: if this is intentional, prefix it with an underscore: `_e`
+
+warning: variable does not need to be mutable
+   --> src/solver.rs:291:13
+    |
+291 |         let mut resolver = self.resolver.lock().unwrap();
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `version`
+   --> src/solver.rs:309:55
+    |
+309 |     async fn fetch_dependencies(&self, package: &str, version: &Version) -> Result<Vec<(PackageName, Constraint)>> {
+    |                                                       ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_version`
+
+warning: variable does not need to be mutable
+   --> src/solver.rs:310:13
+    |
+310 |         let mut resolver = self.resolver.lock().unwrap();
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `config`
+   --> src/main.rs:400:43
+    |
+400 | async fn uninstall_package(package: &str, config: &SnakepitConfig) -> Result<()> {
+    |                                           ^^^^^^ help: if this is intentional, prefix it with an underscore: `_config`
+
+warning: unused variable: `egg_type`
+   --> src/main.rs:780:17
+    |
+780 |             let egg_type = match r#type.to_lowercase().as_str() {
+    |                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_egg_type`
+
+warning: variable does not need to be mutable
+   --> src/solver.rs:260:36
+    |
+260 |     fn resolve_conflict(&mut self, mut conflict: Rc<Incompatibility>) -> Result<()> {
+    |                                    ----^^^^^^^^
+    |                                    |
+    |                                    help: remove this `mut`
+
+warning: methods `to_requirements_txt` and `format_dependency` are never used
+   --> src/dependency.rs:132:12
+    |
+ 22 | impl ProjectDependencies {
+    | ------------------------ methods in this implementation
+...
+132 |     pub fn to_requirements_txt(&self) -> String {
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+158 |     fn format_dependency(&self, dep: &Dependency) -> String {
+    |        ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `PackageInfo` is never constructed
+  --> src/resolver.rs:49:12
+   |
+49 | pub struct PackageInfo {
+   |            ^^^^^^^^^^^
+
+warning: method `resolve_single_dependency` is never used
+   --> src/resolver.rs:178:14
+    |
+ 92 | impl DependencyResolver {
+    | ----------------------- method in this implementation
+...
+178 |     async fn resolve_single_dependency(&self, dep: &Dependency) -> Result<ResolvedDependency> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `to_requirements_txt` is never used
+   --> src/resolver.rs:302:12
+    |
+294 | impl ResolvedDependencies {
+    | ------------------------- method in this implementation
+...
+302 |     pub fn to_requirements_txt(&self) -> String {
+    |            ^^^^^^^^^^^^^^^^^^^
+
+warning: field `source` is never read
+   --> src/resolver.rs:327:9
+    |
+322 | pub struct ResolvedDependency {
+    |            ------------------ field in this struct
+...
+327 |     pub source: Option<String>,
+    |         ^^^^^^
+    |
+    = note: `ResolvedDependency` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variant `Uv` is never constructed
+  --> src/installer.rs:10:5
+   |
+ 8 | pub enum InstallerBackend {
+   |          ---------------- variant in this enum
+ 9 |     Native,
+10 |     Uv,
+   |     ^^
+   |
+   = note: `InstallerBackend` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: associated function `command_exists` is never used
+  --> src/installer.rs:22:8
+   |
+16 | impl InstallerBackend {
+   | --------------------- associated function in this implementation
+...
+22 |     fn command_exists(command: &str) -> bool {
+   |        ^^^^^^^^^^^^^^
+
+warning: methods `with_venv` and `with_cache` are never used
+  --> src/installer.rs:53:12
+   |
+39 | impl PackageInstaller {
+   | --------------------- methods in this implementation
+...
+53 |     pub fn with_venv(mut self, venv_path: String) -> Self {
+   |            ^^^^^^^^^
+...
+58 |     pub fn with_cache(mut self, use_cache: bool) -> Self {
+   |            ^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> src/config.rs:36:12
+    |
+ 35 | impl SnakepitConfig {
+    | ------------------- associated items in this implementation
+ 36 |     pub fn new() -> Self {
+    |            ^^^
+...
+ 52 |     pub fn save(&self) -> Result<()> {
+    |            ^^^^
+...
+ 74 |     pub fn get_venv_path(&self) -> PathBuf {
+    |            ^^^^^^^^^^^^^
+...
+ 86 |     pub fn get_cache_path(&self) -> PathBuf {
+    |            ^^^^^^^^^^^^^^
+...
+ 94 |     pub fn with_backend(mut self, backend: &str) -> Self {
+    |            ^^^^^^^^^^^^
+...
+ 99 |     pub fn with_venv_backend(mut self, backend: &str) -> Self {
+    |            ^^^^^^^^^^^^^^^^^
+...
+104 |     pub fn with_venv_path(mut self, path: &str) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+109 |     pub fn with_python_version(mut self, version: &str) -> Self {
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+114 |     pub fn with_cache(mut self, enabled: bool) -> Self {
+    |            ^^^^^^^^^^
+...
+119 |     pub fn with_mirrors(mut self, mirrors: Vec<String>) -> Self {
+    |            ^^^^^^^^^^^^
+...
+124 |     pub fn with_timeout(mut self, timeout: u64) -> Self {
+    |            ^^^^^^^^^^^^
+...
+129 |     pub fn with_retries(mut self, retries: u32) -> Self {
+    |            ^^^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> src/config.rs:163:12
+    |
+148 | impl ProjectConfig {
+    | ------------------ associated items in this implementation
+...
+163 |     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+    |            ^^^^^^^^^^^^^^
+...
+175 |     pub fn with_version(mut self, version: &str) -> Self {
+    |            ^^^^^^^^^^^^
+...
+180 |     pub fn with_description(mut self, description: &str) -> Self {
+    |            ^^^^^^^^^^^^^^^^
+...
+195 |     pub fn with_venv_name(mut self, name: &str) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+200 |     pub fn add_dependency(mut self, dependency: &str) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+205 |     pub fn add_dev_dependency(mut self, dependency: &str) -> Self {
+    |            ^^^^^^^^^^^^^^^^^^
+...
+210 |     pub fn add_script(mut self, name: &str, command: &str) -> Self {
+    |            ^^^^^^^^^^
+
+warning: methods `stop` and `status` are never used
+   --> src/daemon.rs:135:18
+    |
+ 78 | impl SnakepitDaemon {
+    | ------------------- methods in this implementation
+...
+135 |     pub async fn stop(&self) -> Result<()> {
+    |                  ^^^^
+...
+151 |     pub async fn status(&self) -> Result<DaemonStatus> {
+    |                  ^^^^^^
+
+warning: fields `pid`, `name`, `cmd`, `start_time`, and `last_check` are never read
+  --> src/process_monitor.rs:14:9
+   |
+13 | pub struct ProcessInfo {
+   |            ----------- fields in this struct
+14 |     pub pid: Pid,
+   |         ^^^
+15 |     pub name: String,
+   |         ^^^^
+16 |     pub cmd: Vec<String>,
+   |         ^^^
+17 |     pub start_time: SystemTime,
+   |         ^^^^^^^^^^
+18 |     pub last_check: SystemTime,
+   |         ^^^^^^^^^^
+   |
+   = note: `ProcessInfo` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `start_monitoring` and `get_process_stats` are never used
+   --> src/process_monitor.rs:45:18
+    |
+ 37 | impl ProcessMonitor {
+    | ------------------- methods in this implementation
+...
+ 45 |     pub async fn start_monitoring(&self, check_interval: Duration) -> Result<()> {
+    |                  ^^^^^^^^^^^^^^^^
+...
+203 |     pub async fn get_process_stats(&self) -> Result<ProcessStats> {
+    |                  ^^^^^^^^^^^^^^^^^
+
+warning: struct `ProcessStats` is never constructed
+   --> src/process_monitor.rs:221:12
+    |
+221 | pub struct ProcessStats {
+    |            ^^^^^^^^^^^^
+
+warning: struct `StraceMonitor` is never constructed
+   --> src/process_monitor.rs:229:12
+    |
+229 | pub struct StraceMonitor {
+    |            ^^^^^^^^^^^^^
+
+warning: associated items `new`, `start_tracing`, `stop_tracing`, and `parse_strace_output` are never used
+   --> src/process_monitor.rs:235:12
+    |
+234 | impl StraceMonitor {
+    | ------------------ associated items in this implementation
+235 |     pub fn new() -> Self {
+    |            ^^^
+...
+242 |     pub async fn start_tracing(&self, pid: Pid) -> Result<()> {
+    |                  ^^^^^^^^^^^^^
+...
+260 |     pub async fn stop_tracing(&self, pid: Pid) -> Result<()> {
+    |                  ^^^^^^^^^^^^
+...
+268 |     pub async fn parse_strace_output(&self, pid: Pid) -> Result<Vec<String>> {
+    |                  ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `VisualInstaller` is never constructed
+ --> src/visual_installer.rs:8:12
+  |
+8 | pub struct VisualInstaller {
+  |            ^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `install_package`, `install_with_gui`, `install_classic`, `install_packages`, and `is_visual_available` are never used
+   --> src/visual_installer.rs:14:12
+    |
+ 13 | impl VisualInstaller {
+    | -------------------- associated items in this implementation
+ 14 |     pub fn new() -> Self {
+    |            ^^^
+...
+ 30 |     pub async fn install_package(&self, package: &str, version: Option<&str>) -> Result<()> {
+    |                  ^^^^^^^^^^^^^^^
+...
+ 39 |     async fn install_with_gui(&self, package: &str, version: Option<&str>) -> Result<()> {
+    |              ^^^^^^^^^^^^^^^^
+...
+ 78 |     async fn install_classic(&self, package: &str, version: Option<&str>) -> Result<()> {
+    |              ^^^^^^^^^^^^^^^
+...
+101 |     pub async fn install_packages(&self, packages: &[&str]) -> Result<()> {
+    |                  ^^^^^^^^^^^^^^^^
+...
+137 |     pub fn is_visual_available(&self) -> bool {
+    |            ^^^^^^^^^^^^^^^^^^^
+
+warning: field `active_packages` is never read
+  --> src/handler.rs:37:5
+   |
+36 | pub struct SnakepitHandler {
+   |            --------------- field in this struct
+37 |     active_packages: std::collections::HashMap<String, PackageMetadata>,
+   |     ^^^^^^^^^^^^^^^
+
+warning: struct `Conflict` is never constructed
+ --> src/resolver_ai.rs:7:12
+  |
+7 | pub struct Conflict {
+  |            ^^^^^^^^
+
+warning: struct `Resolution` is never constructed
+  --> src/resolver_ai.rs:17:12
+   |
+17 | pub struct Resolution {
+   |            ^^^^^^^^^^
+
+warning: struct `AIResolver` is never constructed
+  --> src/resolver_ai.rs:24:12
+   |
+24 | pub struct AIResolver {
+   |            ^^^^^^^^^^
+
+warning: associated items `new`, `resolve_conflict`, `build_conflict_prompt`, `parse_resolution`, and `detect_conflicts` are never used
+   --> src/resolver_ai.rs:30:12
+    |
+ 29 | impl AIResolver {
+    | --------------- associated items in this implementation
+ 30 |     pub fn new() -> Result<Self> {
+    |            ^^^
+...
+ 37 |     pub async fn resolve_conflict(&mut self, conflict: &Conflict) -> Result<Option<Resolution>> {
+    |                  ^^^^^^^^^^^^^^^^
+...
+ 61 |     fn build_conflict_prompt(&self, conflict: &Conflict) -> String {
+    |        ^^^^^^^^^^^^^^^^^^^^^
+...
+ 93 |     fn parse_resolution(&self, response: &str) -> Option<Resolution> {
+    |        ^^^^^^^^^^^^^^^^
+...
+125 |     pub fn detect_conflicts(&self, dependencies: &[(String, String)]) -> Vec<Conflict> {
+    |            ^^^^^^^^^^^^^^^^
+
+warning: fields `total_time` and `function_calls` are never read
+  --> src/solid_snake.rs:38:9
+   |
+37 | pub struct PerformanceMetrics {
+   |            ------------------ fields in this struct
+38 |     pub total_time: f64,
+   |         ^^^^^^^^^^
+39 |     pub function_calls: usize,
+   |         ^^^^^^^^^^^^^^
+   |
+   = note: `PerformanceMetrics` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `get_connected_devices` is never used
+   --> src/solid_snake.rs:346:12
+    |
+ 43 | impl SolidSnakeEngine {
+    | --------------------- method in this implementation
+...
+346 |     pub fn get_connected_devices(&self) -> &[AndroidDevice] {
+    |            ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `log` is never used
+  --> src/logger.rs:61:18
+   |
+17 | impl GitLogger {
+   | -------------- method in this implementation
+...
+61 |     pub async fn log(&self, message: &str) -> Result<()> {
+   |                  ^^^
+
+warning: struct `Version` is never constructed
+  --> src/pep440.rs:44:12
+   |
+44 | pub struct Version {
+   |            ^^^^^^^
+
+warning: associated function `parse` is never used
+  --> src/pep440.rs:54:12
+   |
+53 | impl Version {
+   | ------------ associated function in this implementation
+54 |     pub fn parse(version_str: &str) -> Result<Self> {
+   |            ^^^^^
+
+warning: type alias `PackageName` is never used
+ --> src/solver.rs:9:10
+  |
+9 | pub type PackageName = String;
+  |          ^^^^^^^^^^^
+
+warning: enum `Constraint` is never used
+  --> src/solver.rs:13:10
+   |
+13 | pub enum Constraint {
+   |          ^^^^^^^^^^
+
+warning: methods `allows` and `intersect` are never used
+  --> src/solver.rs:23:12
+   |
+22 | impl Constraint {
+   | --------------- methods in this implementation
+23 |     pub fn allows(&self, version: &Version) -> bool {
+   |            ^^^^^^
+...
+34 |     pub fn intersect(&self, other: &Constraint) -> Constraint {
+   |            ^^^^^^^^^
+
+warning: struct `Term` is never constructed
+  --> src/solver.rs:64:12
+   |
+64 | pub struct Term {
+   |            ^^^^
+
+warning: associated items `new`, `negate`, and `relation` are never used
+  --> src/solver.rs:71:12
+   |
+70 | impl Term {
+   | --------- associated items in this implementation
+71 |     pub fn new(package: PackageName, constraint: Constraint) -> Self {
+   |            ^^^
+...
+75 |     pub fn negate(&self) -> Self {
+   |            ^^^^^^
+...
+84 |     pub fn relation(&self, other: &Term) -> SetRelation {
+   |            ^^^^^^^^
+
+warning: enum `SetRelation` is never used
+  --> src/solver.rs:95:10
+   |
+95 | pub enum SetRelation {
+   |          ^^^^^^^^^^^
+
+warning: struct `Incompatibility` is never constructed
+   --> src/solver.rs:105:12
+    |
+105 | pub struct Incompatibility {
+    |            ^^^^^^^^^^^^^^^
+
+warning: enum `IncompatibilityCause` is never used
+   --> src/solver.rs:111:10
+    |
+111 | pub enum IncompatibilityCause {
+    |          ^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `Assignment` is never used
+   --> src/solver.rs:120:10
+    |
+120 | pub enum Assignment {
+    |          ^^^^^^^^^^
+
+warning: struct `PartialSolution` is never constructed
+   --> src/solver.rs:134:12
+    |
+134 | pub struct PartialSolution {
+    |            ^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `assign`, `decision_level`, `satisfies`, `unsatisfies`, and `backtrack` are never used
+   --> src/solver.rs:140:12
+    |
+139 | impl PartialSolution {
+    | -------------------- associated items in this implementation
+140 |     pub fn new() -> Self {
+    |            ^^^
+...
+147 |     pub fn assign(&mut self, assignment: Assignment) {
+    |            ^^^^^^
+...
+159 |     pub fn decision_level(&self) -> usize {
+    |            ^^^^^^^^^^^^^^
+...
+163 |     pub fn satisfies(&self, term: &Term) -> bool {
+    |            ^^^^^^^^^
+...
+172 |     pub fn unsatisfies(&self, term: &Term) -> bool {
+    |            ^^^^^^^^^^^
+...
+181 |     pub fn backtrack(&mut self, decision_level: usize) {
+    |            ^^^^^^^^^
+
+warning: struct `Solver` is never constructed
+   --> src/solver.rs:198:12
+    |
+198 | pub struct Solver {
+    |            ^^^^^^
+
+warning: multiple associated items are never used
+   --> src/solver.rs:207:12
+    |
+206 | impl Solver {
+    | ----------- associated items in this implementation
+207 |     pub fn new(root: PackageName, root_version: Version, resolver: Arc<Mutex<DependencyResolver>>) -> Self {
+    |            ^^^
+...
+217 |     pub async fn solve(&mut self) -> Result<HashMap<PackageName, Version>> {
+    |                  ^^^^^
+...
+260 |     fn resolve_conflict(&mut self, mut conflict: Rc<Incompatibility>) -> Result<()> {
+    |        ^^^^^^^^^^^^^^^^
+...
+276 |     fn choose_next_package(&self) -> Option<PackageName> {
+    |        ^^^^^^^^^^^^^^^^^^^
+...
+290 |     async fn fetch_best_version(&self, package: &str) -> Result<Version> {
+    |              ^^^^^^^^^^^^^^^^^^
+...
+309 |     async fn fetch_dependencies(&self, package: &str, version: &Version) -> Result<Vec<(PackageName, Constraint)>> {
+    |              ^^^^^^^^^^^^^^^^^^
+...
+482 |     fn propagate(&mut self) -> Option<Rc<Incompatibility>> {
+    |        ^^^^^^^^^
+
+warning: struct `DependencySpecifier` is never constructed
+  --> src/markers.rs:20:12
+   |
+20 | pub struct DependencySpecifier {
+   |            ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `VersionSpecifier` is never constructed
+  --> src/markers.rs:28:12
+   |
+28 | pub struct VersionSpecifier {
+   |            ^^^^^^^^^^^^^^^^
+
+warning: struct `EnvironmentMarker` is never constructed
+  --> src/markers.rs:34:12
+   |
+34 | pub struct EnvironmentMarker {
+   |            ^^^^^^^^^^^^^^^^^
+
+warning: method `evaluate` is never used
+  --> src/markers.rs:39:12
+   |
+38 | impl EnvironmentMarker {
+   | ---------------------- method in this implementation
+39 |     pub fn evaluate(&self, env: &TargetEnvironment) -> bool {
+   |            ^^^^^^^^
+
+warning: struct `TargetEnvironment` is never constructed
+  --> src/markers.rs:70:12
+   |
+70 | pub struct TargetEnvironment {
+   |            ^^^^^^^^^^^^^^^^^
+
+warning: function `parse_requirement` is never used
+  --> src/markers.rs:88:8
+   |
+88 | pub fn parse_requirement(req_str: &str) -> Result<DependencySpecifier> {
+   |        ^^^^^^^^^^^^^^^^^
+
+warning: function `parse_version_specifiers` is never used
+   --> src/markers.rs:119:4
+    |
+119 | fn parse_version_specifiers(spec_str: &str) -> Result<Vec<VersionSpecifier>> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `extract_version_requirement` is never used
+   --> src/markers.rs:164:4
+    |
+164 | fn extract_version_requirement(marker: &str, key: &str) -> Option<(String, String)> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `extract_string_requirement` is never used
+   --> src/markers.rs:177:4
+    |
+177 | fn extract_string_requirement(marker: &str, key: &str) -> Option<String> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `compare_versions` is never used
+   --> src/markers.rs:190:4
+    |
+190 | fn compare_versions(actual: &str, op: &str, required: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^
+
+warning: struct `Lockfile` is never constructed
+ --> src/lockfile.rs:9:12
+  |
+9 | pub struct Lockfile {
+  |            ^^^^^^^^
+
+warning: struct `LockfileMetadata` is never constructed
+  --> src/lockfile.rs:15:12
+   |
+15 | pub struct LockfileMetadata {
+   |            ^^^^^^^^^^^^^^^^
+
+warning: struct `LockedPackage` is never constructed
+  --> src/lockfile.rs:23:12
+   |
+23 | pub struct LockedPackage {
+   |            ^^^^^^^^^^^^^
+
+warning: enum `PackageSource` is never used
+  --> src/lockfile.rs:33:10
+   |
+33 | pub enum PackageSource {
+   |          ^^^^^^^^^^^^^
+
+warning: associated items `new`, `add_package`, `save`, `load`, and `verify_integrity` are never used
+  --> src/lockfile.rs:40:12
+   |
+39 | impl Lockfile {
+   | ------------- associated items in this implementation
+40 |     pub fn new() -> Self {
+   |            ^^^
+...
+55 |     pub fn add_package(&mut self, package: LockedPackage) {
+   |            ^^^^^^^^^^^
+...
+59 |     pub async fn save(&self, path: &Path) -> Result<()> {
+   |                  ^^^^
+...
+65 |     pub async fn load(path: &Path) -> Result<Self> {
+   |                  ^^^^
+...
+71 |     pub fn verify_integrity(&self) -> bool {
+   |            ^^^^^^^^^^^^^^^^
+
+warning: struct `LockfileGenerator` is never constructed
+  --> src/lockfile.rs:84:12
+   |
+84 | pub struct LockfileGenerator {
+   |            ^^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `generate_from_solver`, and `create_locked_package` are never used
+   --> src/lockfile.rs:89:12
+    |
+ 88 | impl LockfileGenerator {
+    | ---------------------- associated items in this implementation
+ 89 |     pub fn new() -> Self {
+    |            ^^^
+...
+ 95 |     pub async fn generate_from_solver(
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+109 |     async fn create_locked_package(
+    |              ^^^^^^^^^^^^^^^^^^^^^
+
+warning: `snakepit` (bin "snakepit") generated 91 warnings (run `cargo fix --bin "snakepit"` to apply 28 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 23.19s

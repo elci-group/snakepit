@@ -36,7 +36,7 @@ pub enum ModificationType {
 impl HallucinatoryFangs {
     pub fn new() -> Result<Self> {
         // Create sandbox directory in cache
-        let sandbox_dir = crate::native::dirs::cache_dir()
+        let sandbox_dir = snakegg::native::dirs::cache_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find cache directory"))?
             .join("snakepit")
             .join("fangs");

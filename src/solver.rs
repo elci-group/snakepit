@@ -14,7 +14,9 @@ pub enum Constraint {
     Any,
     Exact(Version),
     Range(Version, Version), // Min (inclusive), Max (exclusive)
-    // TODO: Add more complex ranges (union, intersection)
+    Union(Vec<Constraint>),
+    Intersection(Vec<Constraint>),
+    Not(Box<Constraint>),
 }
 
 impl Constraint {
@@ -23,6 +25,9 @@ impl Constraint {
             Constraint::Any => true,
             Constraint::Exact(v) => v == version,
             Constraint::Range(min, max) => version >= min && version < max,
+            Constraint::Union(constraints) => constraints.iter().any(|c| c.allows(version)),
+            Constraint::Intersection(constraints) => constraints.iter().all(|c| c.allows(version)),
+            Constraint::Not(c) => !c.allows(version),
         }
     }
 
@@ -31,10 +36,25 @@ impl Constraint {
         match (self, other) {
             (Constraint::Any, c) | (c, Constraint::Any) => c.clone(),
             (Constraint::Exact(v1), Constraint::Exact(v2)) => {
-                if v1 == v2 { Constraint::Exact(v1.clone()) } else { Constraint::Range(v1.clone(), v1.clone()) } // Empty
+                if v1 == v2 { Constraint::Exact(v1.clone()) } else { Constraint::Union(vec![]) } // Empty
             },
-            // ... more logic needed for ranges
-            _ => Constraint::Any, // Placeholder
+            (Constraint::Intersection(c1), Constraint::Intersection(c2)) => {
+                let mut combined = c1.clone();
+                combined.extend(c2.clone());
+                Constraint::Intersection(combined)
+            },
+            (c1, Constraint::Intersection(c2)) => {
+                let mut combined = c2.clone();
+                combined.push(c1.clone());
+                Constraint::Intersection(combined)
+            },
+            (Constraint::Intersection(c1), c2) => {
+                let mut combined = c1.clone();
+                combined.push(c2.clone());
+                Constraint::Intersection(combined)
+            },
+            // For other cases, just create an intersection
+            (c1, c2) => Constraint::Intersection(vec![c1.clone(), c2.clone()]),
         }
     }
 }
@@ -304,41 +324,154 @@ impl Solver {
                     }
                     
                     // Convert version specs to Constraint
-                    let constraint = if spec.version_specs.is_empty() {
-                        Constraint::Any
+                    let mut constraints = Vec::new();
+                    
+                    if spec.version_specs.is_empty() {
+                        constraints.push(Constraint::Any);
                     } else {
-                        // For now, take the first constraint
-                        // Full implementation would need to handle multiple constraints
-                        let vspec = &spec.version_specs[0];
-                        match vspec.operator.as_str() {
-                            "==" => {
-                                if let Ok(v) = Version::parse(&vspec.version) {
-                                    Constraint::Exact(v)
-                                } else {
-                                    Constraint::Any
-                                }
-                            },
-                            ">=" => {
-                                if let Ok(min) = Version::parse(&vspec.version) {
-                                    // Create a Range with a very high max
-                                    let max = Version {
-                                        epoch: 9999,
-                                        release: vec![9999, 9999, 9999],
-                                        pre: None,
-                                        post: None,
-                                        dev: None,
-                                        local: None,
-                                    };
-                                    Constraint::Range(min, max)
-                                } else {
-                                    Constraint::Any
-                                }
-                            },
-                            _ => Constraint::Any, // TODO: Handle other operators
+                        for vspec in &spec.version_specs {
+                            let c = match vspec.operator.as_str() {
+                                "==" => {
+                                    if let Ok(v) = Version::parse(&vspec.version) {
+                                        Constraint::Exact(v)
+                                    } else {
+                                        Constraint::Any
+                                    }
+                                },
+                                ">=" => {
+                                    if let Ok(min) = Version::parse(&vspec.version) {
+                                        let max = Version {
+                                            epoch: 9999,
+                                            release: vec![9999, 9999, 9999],
+                                            pre: None,
+                                            post: None,
+                                            dev: None,
+                                            local: None,
+                                        };
+                                        Constraint::Range(min, max)
+                                    } else {
+                                        Constraint::Any
+                                    }
+                                },
+                                "<=" => {
+                                    if let Ok(v) = Version::parse(&vspec.version) {
+                                        // <= v means < v OR == v
+                                        // < v is Range(MIN, v)
+                                        let min = Version {
+                                            epoch: 0,
+                                            release: vec![0],
+                                            pre: None,
+                                            post: None,
+                                            dev: None,
+                                            local: None,
+                                        };
+                                        Constraint::Union(vec![
+                                            Constraint::Range(min, v.clone()),
+                                            Constraint::Exact(v)
+                                        ])
+                                    } else {
+                                        Constraint::Any
+                                    }
+                                },
+                                ">" => {
+                                    if let Ok(v) = Version::parse(&vspec.version) {
+                                        // > v means >= v AND != v
+                                        // >= v is Range(v, MAX)
+                                        let max = Version {
+                                            epoch: 9999,
+                                            release: vec![9999, 9999, 9999],
+                                            pre: None,
+                                            post: None,
+                                            dev: None,
+                                            local: None,
+                                        };
+                                        Constraint::Intersection(vec![
+                                            Constraint::Range(v.clone(), max),
+                                            Constraint::Not(Box::new(Constraint::Exact(v)))
+                                        ])
+                                    } else {
+                                        Constraint::Any
+                                    }
+                                },
+                                "<" => {
+                                    if let Ok(v) = Version::parse(&vspec.version) {
+                                        let min = Version {
+                                            epoch: 0,
+                                            release: vec![0],
+                                            pre: None,
+                                            post: None,
+                                            dev: None,
+                                            local: None,
+                                        };
+                                        Constraint::Range(min, v)
+                                    } else {
+                                        Constraint::Any
+                                    }
+                                },
+                                "!=" => {
+                                    if let Ok(v) = Version::parse(&vspec.version) {
+                                        Constraint::Not(Box::new(Constraint::Exact(v)))
+                                    } else {
+                                        Constraint::Any
+                                    }
+                                },
+                                "~=" => {
+                                    // ~= 1.2.3 means >= 1.2.3 and == 1.2.*
+                                    // == 1.2.* means >= 1.2.0 and < 1.3.0
+                                    if let Ok(v) = Version::parse(&vspec.version) {
+                                        if v.release.len() < 2 {
+                                            Constraint::Any // Malformed for compatible release
+                                        } else {
+                                            // Remove last segment to get prefix
+                                            let mut prefix = v.release.clone();
+                                            prefix.pop();
+                                            // Increment last segment of prefix
+                                            if let Some(last) = prefix.last_mut() {
+                                                *last += 1;
+                                            }
+                                            let upper_bound = Version {
+                                                epoch: v.epoch,
+                                                release: prefix,
+                                                pre: None,
+                                                post: None,
+                                                dev: None,
+                                                local: None,
+                                            };
+                                            
+                                            let max = Version {
+                                                epoch: 9999,
+                                                release: vec![9999, 9999, 9999],
+                                                pre: None,
+                                                post: None,
+                                                dev: None,
+                                                local: None,
+                                            };
+                                            
+                                            // >= v AND < upper_bound
+                                            Constraint::Intersection(vec![
+                                                Constraint::Range(v, max),
+                                                Constraint::Range(Version { epoch: 0, release: vec![0], pre: None, post: None, dev: None, local: None }, upper_bound)
+                                            ])
+                                        }
+                                    } else {
+                                        Constraint::Any
+                                    }
+                                },
+                                _ => Constraint::Any,
+                            };
+                            constraints.push(c);
                         }
+                    }
+                    
+                    let final_constraint = if constraints.is_empty() {
+                        Constraint::Any
+                    } else if constraints.len() == 1 {
+                        constraints[0].clone()
+                    } else {
+                        Constraint::Intersection(constraints)
                     };
                     
-                    deps.push((spec.name, constraint));
+                    deps.push((spec.name, final_constraint));
                 }
             }
         }

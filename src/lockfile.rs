@@ -78,24 +78,7 @@ impl Lockfile {
         true
     }
 
-    pub fn from_resolved(resolved: &HashMap<String, Version>) -> Self {
-        let mut lockfile = Lockfile::new();
-        
-        for (name, version) in resolved {
-            let locked = LockedPackage {
-                name: name.clone(),
-                version: version.to_string(),
-                dependencies: Vec::new(), // TODO: Extract from solver
-                hashes: Vec::new(), // TODO: Fetch from PyPI
-                source: PackageSource::PyPI {
-                    url: format!("https://pypi.org/simple/{}/", name),
-                },
-            };
-            lockfile.add_package(locked);
-        }
-        
-        lockfile
-    }
+
 }
 
 pub struct LockfileGenerator {

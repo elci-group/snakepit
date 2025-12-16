@@ -4,7 +4,7 @@ use std::process::Command;
 use std::time::{SystemTime, Duration};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
-use crate::native::style::{dim, green, yellow};
+use snakegg::native::style::{dim, green, yellow};
 
 #[derive(Debug)]
 pub struct GitLogger {

@@ -1,12 +1,12 @@
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::native::id;
-use crate::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
+use snakegg::native::id;
+use snakegg::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
 use serde::{Serialize, Deserialize};
 use crate::sandbox::VenvSandbox;
 use crate::installer::{PackageInstaller, InstallerBackend};
-use crate::charmer::SnakeCharmer;
+use snakegg::charmer::SnakeCharmer;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PackageStatus {
@@ -131,7 +131,7 @@ impl SnakepitHandler {
         &mut self, 
         meta: &mut PackageMetadata, 
         test_script: Option<&Path>,
-        charmer_handle: tokio::task::JoinHandle<Result<crate::charmer::TestStrategy>>
+        charmer_handle: tokio::task::JoinHandle<Result<snakegg::charmer::TestStrategy>>
     ) -> Result<bool> {
         println!("{}", cyan(format!("🧪 TEST/COLLABORATE: Validating {}", meta.name)));
         meta.status = PackageStatus::Collaborating;
@@ -152,7 +152,7 @@ impl SnakepitHandler {
         };
 
         match strategy {
-            Some(crate::charmer::TestStrategy::SimpleCommand(cmd)) => {
+            Some(snakegg::charmer::TestStrategy::SimpleCommand(cmd)) => {
                 println!("{}", magenta(format!("🐍 CHARMER: Suggests running command: {}", cmd)));
                 let args: Vec<&str> = cmd.split_whitespace().collect();
                 match sandbox.run_command(&args).await {
@@ -165,7 +165,7 @@ impl SnakepitHandler {
                     }
                 }
             }
-            Some(crate::charmer::TestStrategy::PythonScript(code)) => {
+            Some(snakegg::charmer::TestStrategy::PythonScript(code)) => {
                 println!("{}", magenta("🐍 CHARMER: Generated a custom Python test script."));
                 let test_path = sandbox.get_path().join("test_script.py");
                 std::fs::write(&test_path, code)?;

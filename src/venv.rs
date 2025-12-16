@@ -1,9 +1,9 @@
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
-use crate::native::progress::ProgressBar;
-use crate::native::which;
+use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+use snakegg::native::progress::ProgressBar;
+use snakegg::native::which;
 
 #[derive(Debug, Clone)]
 pub enum VenvBackend {
@@ -52,7 +52,7 @@ impl VirtualEnvironmentManager {
     }
 
     fn get_default_venv_path() -> PathBuf {
-        if let Some(home) = crate::native::dirs::home_dir() {
+        if let Some(home) = snakegg::native::dirs::home_dir() {
             home.join(".snakepit").join("venvs")
         } else {
             PathBuf::from(".snakepit").join("venvs")

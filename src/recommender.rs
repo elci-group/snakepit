@@ -1,6 +1,6 @@
-use crate::charmer::SnakeCharmer;
+use snakegg::charmer::SnakeCharmer;
 use anyhow::Result;
-use crate::native::style::{red, green, yellow, blue, cyan, bold, dim};
+use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
 
 #[derive(Debug, Clone)]
 pub struct PackageRecommendation {
