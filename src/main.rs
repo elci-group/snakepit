@@ -59,6 +59,12 @@ async fn main() -> Result<()> {
         cli::Commands::Sync => {
             sync_dependencies(&config).await?;
         }
+        cli::Commands::Search { query } => {
+            search_packages(&query, &config).await?;
+        }
+        cli::Commands::Show { package } => {
+            show_package(&package, &config).await?;
+        }
         cli::Commands::Init { name } => {
             init_project(name.as_deref(), &config).await?;
         }
@@ -489,6 +495,53 @@ async fn sync_dependencies(config: &SnakepitConfig) -> Result<()> {
     installer.install_dependencies(&all_deps).await?;
     
     println!("{}", green("✓ Dependencies synced successfully!"));
+    Ok(())
+}
+
+async fn search_packages(query: &str, config: &SnakepitConfig) -> Result<()> {
+    let backend = match config.default_backend.as_deref() {
+        Some("conda") => InstallerBackend::Conda,
+        Some("poetry") => InstallerBackend::Poetry,
+        _ => InstallerBackend::Pip,
+    };
+
+    let installer = PackageInstaller::new()
+        .with_backend(backend);
+
+    let results = installer.search_package(query).await?;
+    
+    if results.is_empty() {
+        println!("{}", yellow(format!("No packages found matching '{}'", query)));
+    } else {
+        println!("{}", blue(format!("Search results for '{}':", query)));
+        for result in results {
+            println!("  • {}", result);
+        }
+    }
+    
+    Ok(())
+}
+
+async fn show_package(package: &str, config: &SnakepitConfig) -> Result<()> {
+    let backend = match config.default_backend.as_deref() {
+        Some("conda") => InstallerBackend::Conda,
+        Some("poetry") => InstallerBackend::Poetry,
+        _ => InstallerBackend::Pip,
+    };
+
+    let installer = PackageInstaller::new()
+        .with_backend(backend);
+
+    match installer.show_package(package).await {
+        Ok(details) => {
+            println!("{}", blue(format!("Package details for '{}':", package)));
+            println!("{}", details);
+        }
+        Err(e) => {
+            println!("{}", red(format!("Failed to show package details: {}", e)));
+        }
+    }
+    
     Ok(())
 }
 

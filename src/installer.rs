@@ -180,6 +180,24 @@ impl PackageInstaller {
         }
     }
 
+    pub async fn search_package(&self, query: &str) -> Result<Vec<String>> {
+        // For now, we'll only support PyPI search via native backend or pip
+        // uv doesn't support search yet
+        match self.backend {
+            InstallerBackend::Native | InstallerBackend::Uv | InstallerBackend::Pip => self.search_with_pip(query).await,
+            InstallerBackend::Conda => self.search_with_conda(query).await,
+            InstallerBackend::Poetry => self.search_with_poetry(query).await,
+        }
+    }
+
+    pub async fn show_package(&self, package: &str) -> Result<String> {
+        match self.backend {
+            InstallerBackend::Native | InstallerBackend::Uv | InstallerBackend::Pip => self.show_with_pip(package).await,
+            InstallerBackend::Conda => self.show_with_conda(package).await,
+            InstallerBackend::Poetry => self.show_with_poetry(package).await,
+        }
+    }
+
     async fn install_with_native(&self, package: &str, version: Option<&str>) -> Result<()> {
         use std::io::Cursor;
         use zip::ZipArchive;
@@ -866,6 +884,99 @@ impl PackageInstaller {
             .collect();
 
         Ok(packages)
+    }
+
+    async fn search_with_pip(&self, query: &str) -> Result<Vec<String>> {
+        let mut cmd = Command::new("pip");
+        cmd.arg("search").arg(query);
+        
+        println!("{}", dim("🌐 Searching PyPI..."));
+        
+        // Fallback: try `pip search` just in case user has a custom index
+        let output = cmd.output()?;
+        if output.status.success() {
+             let results: Vec<String> = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .take(10)
+                .map(|l| l.to_string())
+                .collect();
+             return Ok(results);
+        }
+        
+        // If pip search fails (likely), return a helpful message or empty list
+        Ok(vec![format!("PyPI search via pip is limited. Try visiting https://pypi.org/search/?q={}", query)])
+    }
+
+    async fn search_with_conda(&self, query: &str) -> Result<Vec<String>> {
+        let mut cmd = Command::new("conda");
+        cmd.arg("search").arg(query);
+        
+        let output = cmd.output()?;
+        if !output.status.success() {
+            return Err(anyhow::anyhow!("Failed to search conda"));
+        }
+        
+        let results: Vec<String> = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .take(10)
+            .map(|l| l.to_string())
+            .collect();
+            
+        Ok(results)
+    }
+
+    async fn search_with_poetry(&self, query: &str) -> Result<Vec<String>> {
+        let mut cmd = Command::new("poetry");
+        cmd.arg("search").arg(query);
+        
+        let output = cmd.output()?;
+        if !output.status.success() {
+            return Err(anyhow::anyhow!("Failed to search poetry"));
+        }
+        
+        let results: Vec<String> = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .take(10)
+            .map(|l| l.to_string())
+            .collect();
+            
+        Ok(results)
+    }
+
+    async fn show_with_pip(&self, package: &str) -> Result<String> {
+        let mut cmd = Command::new("pip");
+        cmd.arg("show").arg(package);
+        
+        let output = cmd.output()?;
+        if !output.status.success() {
+            return Err(anyhow::anyhow!("Package not found or not installed"));
+        }
+        
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
+    async fn show_with_conda(&self, package: &str) -> Result<String> {
+        let mut cmd = Command::new("conda");
+        cmd.arg("list").arg(package);
+        
+        let output = cmd.output()?;
+        if !output.status.success() {
+            return Err(anyhow::anyhow!("Package not found"));
+        }
+        
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
+    async fn show_with_poetry(&self, package: &str) -> Result<String> {
+        let mut cmd = Command::new("poetry");
+        cmd.arg("show").arg(package);
+        
+        let output = cmd.output()?;
+        if !output.status.success() {
+            return Err(anyhow::anyhow!("Package not found"));
+        }
+        
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
     
     // Helper: Verify wheel integrity using SHA256 or MD5

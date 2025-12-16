@@ -31,6 +31,16 @@ pub enum Commands {
     List,
     /// Sync dependencies from requirements file
     Sync,
+    /// Search for packages
+    Search {
+        /// Query string
+        query: String,
+    },
+    /// Show package details
+    Show {
+        /// Package name
+        package: String,
+    },
     /// Initialize a new project
     Init {
         /// Project name
