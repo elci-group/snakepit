@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use std::fs;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use snakegg::native::dirs;
 
 #[derive(Clone)]
@@ -99,20 +100,96 @@ impl DependencyResolver {
     }
 
     pub async fn resolve_dependencies(&mut self, project: &ProjectDependencies) -> Result<ResolvedDependencies> {
-        let mut resolved = ResolvedDependencies::new();
-        let mut visited = HashSet::new();
+        // Create a pseudo-root package representing the project
+        let root_name = "root_project".to_string();
+        let root_version = "0.0.0".to_string();
         
-        // Resolve main dependencies
+        let mut root_requires = Vec::new();
+        
+        // Add main dependencies
         for dep in &project.dependencies {
-            let resolved_dep = self.resolve_recursive(dep, &mut visited).await?;
-            resolved.dependencies.push(resolved_dep);
+            let constraint = if let Some(v) = &dep.version {
+                format!("{} {}", dep.version_constraint.as_deref().unwrap_or("=="), v)
+            } else {
+                "".to_string()
+            };
+            root_requires.push(format!("{} {}", dep.name, constraint).trim().to_string());
         }
         
-        // Resolve dev dependencies
+        // Add dev dependencies (optional, maybe separate resolve?)
+        // For now, let's resolve them together
         for dep in &project.dev_dependencies {
-            let mut resolved_dep = self.resolve_recursive(dep, &mut visited).await?;
-            resolved_dep.is_dev = true;
-            resolved.dev_dependencies.push(resolved_dep);
+            let constraint = if let Some(v) = &dep.version {
+                format!("{} {}", dep.version_constraint.as_deref().unwrap_or("=="), v)
+            } else {
+                "".to_string()
+            };
+            root_requires.push(format!("{} {}", dep.name, constraint).trim().to_string());
+        }
+
+        let root_info = PyPIPackageInfo {
+            info: PyPIInfo {
+                name: root_name.clone(),
+                version: root_version.clone(),
+                summary: None,
+                description: None,
+                author: None,
+                license: None,
+                home_page: None,
+                requires_dist: Some(root_requires),
+            },
+            releases: {
+                let mut map = HashMap::new();
+                map.insert(root_version.clone(), Vec::new());
+                map
+            },
+        };
+
+        // Inject root into memory cache
+        {
+            let mut cache = self.mem_cache.lock().await;
+            cache.insert(root_name.clone(), root_info);
+        }
+
+        // Initialize Solver
+        // We need to wrap self in Arc<Mutex> to pass to Solver
+        
+        let shared_resolver = Arc::new(Mutex::new(Self {
+            client: self.client.clone(),
+            cache: self.cache.clone(),
+            mem_cache: self.mem_cache.clone(),
+        }));
+
+        let mut solver = crate::solver::Solver::new(
+            root_name.clone(), 
+            crate::pep440::Version::parse(&root_version).unwrap(), 
+            shared_resolver
+        );
+
+        let solution = solver.solve().await?;
+        
+        // Convert solution to ResolvedDependencies
+        let mut resolved = ResolvedDependencies::new();
+        
+        for (name, version) in solution {
+            if name == root_name { continue; }
+            
+            // Determine if it was a dev dependency (simplified check)
+            let is_dev = project.dev_dependencies.iter().any(|d| d.name == name);
+            
+            let resolved_dep = ResolvedDependency {
+                name: name.clone(),
+                version: version.to_string(),
+                is_dev,
+                dependencies: Vec::new(), // We don't reconstruct the tree here yet
+                source: None,
+            };
+            
+            if is_dev {
+                resolved.dev_dependencies.push(resolved_dep);
+            } else {
+                resolved.dependencies.push(resolved_dep);
+            }
         }
         
         Ok(resolved)
@@ -127,11 +204,6 @@ impl DependencyResolver {
             // Check for cycles
             if visited.contains(&dep.name) {
                 // Return a placeholder or error? 
-                // For now, we'll just return the dependency without children to break cycle
-                // But we need version info.
-                // If we visited it, we assume it's handled up the stack or elsewhere.
-                // But we need to return a ResolvedDependency.
-                // Let's just fetch info but skip children.
             }
             visited.insert(dep.name.clone());
 
@@ -175,7 +247,7 @@ impl DependencyResolver {
     }
 
     // Kept for backward compatibility if needed, but redirects to recursive
-    async fn resolve_single_dependency(&self, dep: &Dependency) -> Result<ResolvedDependency> {
+    pub async fn resolve_single_dependency(&self, dep: &Dependency) -> Result<ResolvedDependency> {
         let mut visited = HashSet::new();
         self.resolve_recursive(dep, &mut visited).await
     }
@@ -183,7 +255,7 @@ impl DependencyResolver {
     pub async fn fetch_package_info(&self, package_name: &str) -> Result<PyPIPackageInfo> {
         // Check memory cache
         {
-            let cache = self.mem_cache.lock().unwrap();
+            let cache = self.mem_cache.lock().await;
             if let Some(info) = cache.get(package_name) {
                 return Ok(info.clone());
             }
@@ -191,7 +263,7 @@ impl DependencyResolver {
 
         // Check disk cache
         if let Some(info) = self.cache.get(package_name) {
-            let mut cache = self.mem_cache.lock().unwrap();
+            let mut cache = self.mem_cache.lock().await;
             cache.insert(package_name.to_string(), info.clone());
             return Ok(info);
         }
@@ -206,7 +278,7 @@ impl DependencyResolver {
             // Update caches
             self.cache.set(package_name, &package_info);
             {
-                let mut cache = self.mem_cache.lock().unwrap();
+                let mut cache = self.mem_cache.lock().await;
                 cache.insert(package_name.to_string(), package_info.clone());
             }
             

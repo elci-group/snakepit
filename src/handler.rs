@@ -1,11 +1,10 @@
 use anyhow::Result;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use snakegg::native::id;
 use snakegg::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
 use serde::{Serialize, Deserialize};
-use crate::sandbox::VenvSandbox;
-use crate::installer::{PackageInstaller, InstallerBackend};
+use crate::sandbox::{VenvSandbox, SnakepitEnv};
 use snakegg::charmer::SnakeCharmer;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -34,13 +33,13 @@ pub struct PackageMetadata {
 }
 
 pub struct SnakepitHandler {
-    active_packages: std::collections::HashMap<String, PackageMetadata>,
+    _active_packages: std::collections::HashMap<String, PackageMetadata>,
 }
 
 impl SnakepitHandler {
     pub fn new() -> Self {
         Self {
-            active_packages: std::collections::HashMap::new(),
+            _active_packages: std::collections::HashMap::new(),
         }
     }
 
@@ -62,22 +61,22 @@ impl SnakepitHandler {
         let mut meta = self.ingest(package, version).await?;
         
         if meta.status == PackageStatus::Failed {
-            self.kill_destroy(&meta).await?;
+            self.cleanup_sandbox(&meta).await?;
             return Ok(false);
         }
 
         // Phase 2: Test/Collaborate
         let success = self.test_collaborate(&mut meta, test_script, charmer_handle).await?;
         if !success {
-            self.kill_destroy(&meta).await?;
+            self.cleanup_sandbox(&meta).await?;
             return Ok(false);
         }
 
-        // Phase 4: Conscript (Phase 3 happens automatically on success)
-        let installed = self.conscript_install(&mut meta).await?;
-        
-        // Cleanup sandbox
-        self.kill_destroy(&meta).await?;
+        // Phase 4: Promote — install into persistent snakepit environment
+        let installed = self.promote_install(&mut meta).await?;
+
+        // Cleanup sandbox (sandbox was only for validation)
+        self.cleanup_sandbox(&meta).await?;
 
         Ok(installed)
     }
@@ -254,30 +253,32 @@ except Exception as e:
         }
     }
 
-    async fn conscript_install(&mut self, meta: &mut PackageMetadata) -> Result<bool> {
-        println!("{}", cyan(format!("⚔️ CONSCRIPT: Installing {}", meta.name)));
+    async fn promote_install(&mut self, meta: &mut PackageMetadata) -> Result<bool> {
+        println!("{}", cyan(format!("♻️  PROMOTE: Installing {} into snakepit environment", meta.name)));
         meta.install_time = Some(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs());
 
-        let installer = PackageInstaller::new();
-        
-        match installer.install_package(&meta.name, meta.version.as_deref()).await {
+        let env = SnakepitEnv::new();
+
+        match env.install_package(&meta.name, meta.version.as_deref()).await {
             Ok(_) => {
                 meta.status = PackageStatus::Conscripted;
-                meta.success_log.push("Package installed locally".to_string());
-                println!("{}", green(format!("✅ CONSCRIPT: Successfully installed {}", meta.name)));
+                meta.success_log.push("Package installed into snakepit environment".to_string());
+                println!("{}", green(format!("✅ PROMOTE: {} is now available in snakepit environment", meta.name)));
+                println!("{}", dim(format!("   Run your scripts with: snakepit run -- python your_script.py")));
+                println!("{}", dim(format!("   Environment: {}", env.get_path().display())));
                 Ok(true)
             }
             Err(e) => {
                 meta.status = PackageStatus::Failed;
-                meta.error_log.push(format!("Installation failed: {}", e));
-                println!("{}", red(format!("❌ CONSCRIPT: Failed to install {}: {}", meta.name, e)));
+                meta.error_log.push(format!("Promote failed: {}", e));
+                println!("{}", red(format!("❌ PROMOTE: Failed to install {}: {}", meta.name, e)));
                 Ok(false)
             }
         }
     }
 
-    async fn kill_destroy(&mut self, meta: &PackageMetadata) -> Result<()> {
-        println!("{}", dim(format!("💀 KILL/DESTROY: Cleaning up {}", meta.name)));
+    async fn cleanup_sandbox(&mut self, meta: &PackageMetadata) -> Result<()> {
+        println!("{}", dim(format!("🧹 CLEANUP: Removing validation sandbox for {}", meta.name)));
         let sandbox = VenvSandbox::new(&meta.sandbox_id);
         sandbox.destroy().await?;
         Ok(())

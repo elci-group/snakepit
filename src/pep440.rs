@@ -228,3 +228,125 @@ impl fmt::Display for Version {
         Ok(())
     }
 }
+
+impl std::str::FromStr for Version {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
+    }
+}
+
+impl Version {
+    pub fn is_prerelease(&self) -> bool {
+        self.pre.is_some() || self.dev.is_some()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Operator {
+    Equal,
+    NotEqual,
+    GreaterThan,
+    GreaterThanEqual,
+    LessThan,
+    LessThanEqual,
+    Compatible, // ~=
+    ArbitraryEqual, // ===
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VersionSpecifier {
+    pub operator: Operator,
+    pub version: Version,
+}
+
+impl VersionSpecifier {
+    pub fn parse(spec_str: &str) -> Result<Self> {
+        // Simple parser for now
+        let spec_str = spec_str.trim();
+        
+        let (op_str, ver_str) = if spec_str.starts_with("==") {
+            ("==", &spec_str[2..])
+        } else if spec_str.starts_with("!=") {
+            ("!=", &spec_str[2..])
+        } else if spec_str.starts_with(">=") {
+            (">=", &spec_str[2..])
+        } else if spec_str.starts_with("<=") {
+            ("<=", &spec_str[2..])
+        } else if spec_str.starts_with(">") {
+            (">", &spec_str[1..])
+        } else if spec_str.starts_with("<") {
+            ("<", &spec_str[1..])
+        } else if spec_str.starts_with("~=") {
+            ("~=", &spec_str[2..])
+        } else if spec_str.starts_with("===") {
+            ("===", &spec_str[3..])
+        } else {
+            // Default to == if no operator? Or maybe it's just a version which implies ==
+            ("==", spec_str)
+        };
+        
+        let operator = match op_str {
+            "==" => Operator::Equal,
+            "!=" => Operator::NotEqual,
+            ">=" => Operator::GreaterThanEqual,
+            "<=" => Operator::LessThanEqual,
+            ">" => Operator::GreaterThan,
+            "<" => Operator::LessThan,
+            "~=" => Operator::Compatible,
+            "===" => Operator::ArbitraryEqual,
+            _ => return Err(anyhow!("Unknown operator: {}", op_str)),
+        };
+        
+        let version = Version::parse(ver_str)?;
+        
+        Ok(VersionSpecifier {
+            operator,
+            version,
+        })
+    }
+    
+    pub fn matches(&self, version: &Version) -> bool {
+        match self.operator {
+            Operator::Equal => version == &self.version,
+            Operator::NotEqual => version != &self.version,
+            Operator::GreaterThan => version > &self.version,
+            Operator::GreaterThanEqual => version >= &self.version,
+            Operator::LessThan => version < &self.version,
+            Operator::LessThanEqual => version <= &self.version,
+            Operator::Compatible => {
+                // ~= 1.2.3 means >= 1.2.3 and < 1.3.0
+                if version < &self.version {
+                    return false;
+                }
+                
+                // Check if they share the same prefix (major.minor)
+                // Simplified logic: check if major matches and minor >=
+                if version.epoch != self.version.epoch {
+                    return false;
+                }
+                
+                if let (Some(v_maj), Some(s_maj)) = (version.release.get(0), self.version.release.get(0)) {
+                    if v_maj != s_maj {
+                        return false;
+                    }
+                }
+                
+                true 
+            },
+            Operator::ArbitraryEqual => version.to_string() == self.version.to_string(),
+        }
+    }
+}
+
+impl std::str::FromStr for VersionSpecifier {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Handle comma-separated specs by taking the first one for now
+        // Ideally we should have a VersionSpecifiers struct that holds multiple
+        let s = s.split(',').next().unwrap_or(s).trim();
+        Self::parse(s)
+    }
+}

@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "snakepit")]
 #[command(version)]
-#[command(about = "A dynamic Rust-based Python dependency installer")]
+#[command(about = "🐍 A dynamic Rust-based Python dependency installer")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -11,7 +11,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Install a Python package
+    /// 📦 Install a Python package
     Install {
         /// Package name to install
         package: String,
@@ -22,47 +22,47 @@ pub enum Commands {
         #[arg(short, long)]
         dev: bool,
     },
-    /// Uninstall a Python package
+    /// 🗑️  Uninstall a Python package
     Uninstall {
         /// Package name to uninstall
         package: String,
     },
-    /// List installed packages
+    /// 📋 List installed packages with sizes
     List,
-    /// Sync dependencies from requirements file
+    /// 🔄 Sync dependencies from requirements file
     Sync,
-    /// Search for packages
+    /// 🔍 Search for packages on PyPI
     Search {
         /// Query string
         query: String,
     },
-    /// Show package details
+    /// 🔎 Show package details
     Show {
         /// Package name
         package: String,
     },
-    /// Initialize a new project
+    /// 🚀 Initialize a new project
     Init {
         /// Project name
         name: Option<String>,
     },
-    /// Virtual environment management
+    /// 🏠 Virtual environment management
     Venv {
         #[command(subcommand)]
         command: VenvCommands,
     },
-    /// Daemon management
+    /// 👹 Daemon management
     Daemon {
         #[command(subcommand)]
         command: DaemonCommands,
     },
-    /// Fix a broken command by analyzing its error output
+    /// 🔧 Fix a broken command by analyzing its error output
     Fix {
         /// The command to run and analyze (use -- to separate args)
         #[arg(last = true)]
         command: Vec<String>,
     },
-    /// Get AI-powered package recommendations
+    /// 🧠 Get AI-powered package recommendations
     Recommend {
         /// What you want to do (e.g., "web scraping", "data visualization")
         query: String,
@@ -70,58 +70,75 @@ pub enum Commands {
         #[arg(short, long)]
         context: Option<String>,
     },
-    /// Hallucinatory Fangs: Modify module behavior safely
+    /// 🦷 Hallucinatory Fangs — modify module behavior safely
     Fangs {
         #[command(subcommand)]
         action: FangsAction,
     },
-    /// Solid Snake: Test on Android devices
+    /// 🐍 Solid Snake — test on Android devices
     Snake {
         #[command(subcommand)]
         action: SnakeAction,
     },
-    /// Manage package snapshots
+    /// 📸 Manage package snapshots
     Snapshot {
         #[command(subcommand)]
         action: SnapshotAction,
     },
-    /// Quantum Nest Management (SnakeEgg)
+    /// 🖥️  Launch the visual dependency dashboard
+    Ui {
+        /// Port to run the dashboard on
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+    },
+    /// 🪺 Quantum Nest Management (SnakeEgg)
     Nest {
         #[command(subcommand)]
         command: NestCommands,
     },
-    /// Organic Egg Management (SnakeEgg)
+    /// 🥚 Organic Egg Management (SnakeEgg)
     Egg {
         #[command(subcommand)]
         command: EggCommands,
     },
-    /// Clutch Management (SnakeEgg)
+    /// 🧬 Clutch Management (SnakeEgg)
     Clutch {
         #[command(subcommand)]
         command: ClutchCommands,
     },
-    /// Protein Management (SnakeEgg)
+    /// 🧪 Protein Management (SnakeEgg)
     Protein {
         #[command(subcommand)]
         command: ProteinCommands,
+    },
+    /// ▶️  Run a command in the snakepit Python environment
+    Run {
+        /// The command and arguments to run (use -- to separate args)
+        #[arg(last = true)]
+        command: Vec<String>,
+    },
+    /// ⚙️  Show or manage the persistent snakepit environment
+    Env {
+        #[command(subcommand)]
+        command: EnvCommands,
     },
 }
 
 #[derive(Subcommand)]
 pub enum NestCommands {
-    /// Initialize a new quantum nest
+    /// 🏗️  Initialize a new quantum nest
     Init,
-    /// Show nest status
+    /// 📊 Show nest status
     Status,
-    /// Vacuum idle eggs to git ether
+    /// 🧹 Vacuum idle eggs to git ether
     Vacuum {
         /// Maximum idle time (e.g., "24h", "7d")
         #[arg(short, long, default_value = "24h")]
         max_idle: String,
     },
-    /// Checkpoint all eggs to git
+    /// 💾 Checkpoint all eggs to git
     Checkpoint,
-    /// Observe an egg (materialize from ether)
+    /// 👁️  Observe an egg (materialize from ether)
     Observe {
         /// Egg name
         name: String,
@@ -130,7 +147,7 @@ pub enum NestCommands {
 
 #[derive(Subcommand)]
 pub enum EggCommands {
-    /// Create a new egg
+    /// 🥚 Create a new egg
     Create {
         /// Egg name
         name: String,
@@ -141,7 +158,7 @@ pub enum EggCommands {
         #[arg(short, long, default_value = "dual")]
         r#type: String,
     },
-    /// Evolve an egg
+    /// 🧬 Evolve an egg
     Evolve {
         /// Egg name
         name: String,
@@ -149,35 +166,35 @@ pub enum EggCommands {
         #[arg(short, long)]
         watch: bool,
     },
-    /// Show egg status
+    /// 📊 Show egg status
     Status {
         /// Egg name
         name: String,
     },
-    /// List all eggs
+    /// 📋 List all eggs
     List,
 }
 
 #[derive(Subcommand)]
 pub enum ClutchCommands {
-    /// Create a new clutch
+    /// ✨ Create a new clutch
     Create {
         /// Clutch name
         name: String,
     },
-    /// Add eggs to a clutch
+    /// ➕ Add eggs to a clutch
     Add {
         /// Clutch name
         name: String,
         /// Egg names
         eggs: Vec<String>,
     },
-    /// Trigger thermal cycle (heat sharing)
+    /// 🔥 Trigger thermal cycle (heat sharing)
     ThermalCycle {
         /// Clutch name
         name: String,
     },
-    /// Show clutch status
+    /// 📊 Show clutch status
     Status {
         /// Clutch name
         name: String,
@@ -186,9 +203,9 @@ pub enum ClutchCommands {
 
 #[derive(Subcommand)]
 pub enum ProteinCommands {
-    /// List available proteins
+    /// 📋 List available proteins
     List,
-    /// Extract proteins from an egg
+    /// 🧫 Extract proteins from an egg
     Extract {
         /// Egg name
         egg: String,
@@ -196,10 +213,26 @@ pub enum ProteinCommands {
 }
 
 #[derive(Subcommand)]
+pub enum EnvCommands {
+    /// 📊 Show the persistent environment status and path
+    Status,
+    /// 🏗️  Create or recreate the persistent environment
+    Init {
+        /// Python version to use
+        #[arg(short, long)]
+        python_version: Option<String>,
+    },
+    /// 💥 Remove the persistent environment
+    Destroy,
+    /// 📍 Show the Python path for shell integration
+    Path,
+}
+
+#[derive(Subcommand)]
 pub enum SnapshotAction {
-    /// List all snapshots
+    /// 📋 List all snapshots
     List,
-    /// Restore a snapshot
+    /// ⏪ Restore a snapshot
     Restore {
         /// Snapshot ID
         id: String,
@@ -208,7 +241,7 @@ pub enum SnapshotAction {
 
 #[derive(Subcommand)]
 pub enum VenvCommands {
-    /// Create a new virtual environment
+    /// ✨ Create a new virtual environment
     Create {
         /// Virtual environment name
         name: String,
@@ -216,23 +249,23 @@ pub enum VenvCommands {
         #[arg(short, long)]
         python_version: Option<String>,
     },
-    /// Activate a virtual environment
+    /// ⚡ Activate a virtual environment
     Activate {
         /// Virtual environment name
         name: String,
     },
-    /// Delete a virtual environment
+    /// 🗑️  Delete a virtual environment
     Delete {
         /// Virtual environment name
         name: String,
     },
-    /// List all virtual environments
+    /// 📋 List all virtual environments
     List,
 }
 
 #[derive(Subcommand)]
 pub enum DaemonCommands {
-    /// Start the snakepit daemon
+    /// ▶️  Start the snakepit daemon
     Start {
         /// Run in background
         #[arg(short, long)]
@@ -241,18 +274,18 @@ pub enum DaemonCommands {
         #[arg(short, long)]
         config: Option<String>,
     },
-    /// Stop the snakepit daemon
+    /// ⏹️  Stop the snakepit daemon
     Stop,
-    /// Show daemon status
+    /// 📊 Show daemon status
     Status,
-    /// Restart the daemon
+    /// 🔄 Restart the daemon
     Restart,
-    /// Simulate a missing module for testing
+    /// 🧪 Simulate a missing module for testing
     Test {
         /// Module name to simulate
         module: String,
     },
-    /// Configure daemon settings
+    /// ⚙️  Configure daemon settings
     Config {
         #[command(subcommand)]
         command: DaemonConfigCommands,
@@ -261,34 +294,34 @@ pub enum DaemonCommands {
 
 #[derive(Subcommand)]
 pub enum DaemonConfigCommands {
-    /// Set daemon configuration
+    /// ✏️  Set daemon configuration
     Set {
         /// Configuration key
         key: String,
         /// Configuration value
         value: String,
     },
-    /// Show current configuration
+    /// 👀 Show current configuration
     Show,
-    /// Reset to default configuration
+    /// 🔄 Reset to default configuration
     Reset,
 }
 
 #[derive(Subcommand)]
 pub enum FangsAction {
-    /// Fork a module for modification
+    /// 🍴 Fork a module for modification
     Fork {
         /// Module name
         module: String,
     },
-    /// Add logging to a function
+    /// 📝 Add logging to a function
     Log {
         /// Module name
         module: String,
         /// Function name
         function: String,
     },
-    /// Add retry logic to a function
+    /// 🔁 Add retry logic to a function
     Retry {
         /// Module name
         module: String,
@@ -301,7 +334,7 @@ pub enum FangsAction {
         #[arg(short, long, default_value = "1000")]
         backoff_ms: u64,
     },
-    /// Add caching to a function
+    /// 💾 Add caching to a function
     Cache {
         /// Module name
         module: String,
@@ -311,7 +344,7 @@ pub enum FangsAction {
         #[arg(short, long, default_value = "3600")]
         ttl: u64,
     },
-    /// Mock function return value
+    /// 🎭 Mock function return value
     Mock {
         /// Module name
         module: String,
@@ -320,7 +353,7 @@ pub enum FangsAction {
         /// Return value (Python expression)
         value: String,
     },
-    /// Inject custom code into a function
+    /// 💉 Inject custom code into a function
     Custom {
         /// Module name
         module: String,
@@ -329,9 +362,9 @@ pub enum FangsAction {
         /// Python code to inject
         code: String,
     },
-    /// List all forked modules
+    /// 📋 List all forked modules
     List,
-    /// Rollback modifications to a module
+    /// ⏪ Rollback modifications to a module
     Rollback {
         /// Module name
         module: String,
@@ -340,60 +373,60 @@ pub enum FangsAction {
 
 #[derive(Subcommand)]
 pub enum SnakeAction {
-    /// Discover connected Android devices
+    /// 📡 Discover connected Android devices
     Discover,
-    
-    /// Connect to device via WiFi
+
+    /// 📶 Connect to device via WiFi
     Connect {
         /// IP address of device
         ip: String,
-        
+
         /// Port (default: 5555)
         #[arg(short, long, default_value = "5555")]
         port: u16,
     },
-    
-    /// Disconnect from WiFi device
+
+    /// 🔌 Disconnect from WiFi device
     Disconnect {
         /// IP address of device
         ip: String,
-        
+
         /// Port (default: 5555)
         #[arg(short, long, default_value = "5555")]
         port: u16,
     },
-    
-    /// Install package on device
+
+    /// 📦 Install package on device
     Install {
         /// Device ID
         #[arg(short, long)]
         device: String,
-        
+
         /// Package name
         package: String,
     },
-    
-    /// Run tests on device
+
+    /// 🧪 Run tests on device
     Test {
         /// Device ID
         #[arg(short, long)]
         device: String,
-        
+
         /// Test file
         test_file: String,
     },
-    
-    /// Profile performance on device
+
+    /// 📈 Profile performance on device
     Profile {
         /// Device ID
         #[arg(short, long)]
         device: String,
-        
+
         /// Script to profile
         script: String,
     },
-    
-    /// Stream logs from device
+
+    /// 📜 Stream logs from device
     Logs {
         /// Device ID
         #[arg(short, long)]

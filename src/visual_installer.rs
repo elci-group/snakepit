@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+use snakegg::native::style::{green, blue, cyan};
 
 /// Visual installer that uses the snake game GUI
 pub struct VisualInstaller {

@@ -1,7 +1,6 @@
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use lazy_static::lazy_static;
-use std::collections::HashMap;
 
 lazy_static! {
     // Simplified PEP 508 regex pattern
@@ -188,14 +187,25 @@ fn extract_string_requirement(marker: &str, key: &str) -> Option<String> {
 }
 
 fn compare_versions(actual: &str, op: &str, required: &str) -> bool {
-    // Very simplified version comparison
+    use crate::pep440::Version;
+    
+    let v_actual = match Version::parse(actual) {
+        Ok(v) => v,
+        Err(_) => return false, // Invalid actual version
+    };
+    
+    let v_required = match Version::parse(required) {
+        Ok(v) => v,
+        Err(_) => return false, // Invalid required version
+    };
+    
     match op {
-        ">=" => actual >= required,
-        "<=" => actual <= required,
-        ">" => actual > required,
-        "<" => actual < required,
-        "==" => actual == required,
-        "!=" => actual != required,
+        ">=" => v_actual >= v_required,
+        "<=" => v_actual <= v_required,
+        ">" => v_actual > v_required,
+        "<" => v_actual < v_required,
+        "==" => v_actual == v_required,
+        "!=" => v_actual != v_required,
         _ => true,
     }
 }

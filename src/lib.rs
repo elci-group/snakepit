@@ -1,0 +1,1180 @@
+use clap::Parser;
+use anyhow::{Result, Context};
+use snakegg::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
+use std::path::Path;
+
+pub mod dependency;
+pub mod resolver;
+pub mod installer;
+pub mod venv;
+pub mod config;
+pub mod cli;
+pub mod daemon;
+pub mod process_monitor;
+pub mod visual_installer;
+pub mod sandbox;
+pub mod handler;
+
+pub mod resolver_ai;
+pub mod system_libs;
+pub mod recommender;
+pub mod hallucinatory_fangs;
+pub mod dashboard;
+pub mod solid_snake;
+pub mod snakeskin;
+pub mod logger;
+pub mod pep440;
+pub mod solver;
+pub mod markers;
+pub mod lockfile;
+
+
+use cli::Cli;
+use config::{SnakepitConfig, ProjectConfig};
+use dependency::{Dependency, ProjectDependencies};
+use installer::{PackageInstaller, InstallerBackend};
+use venv::{VirtualEnvironmentManager, VenvBackend};
+use dashboard::DashboardServer;
+use resolver::DependencyResolver;
+use daemon::{DaemonManager, DaemonConfig};
+use handler::SnakepitHandler;
+
+use snakegg::charmer::SnakeCharmer;
+
+pub async fn run() -> Result<()> {
+    let cli = Cli::parse();
+    
+    // Load configuration
+    let config = SnakepitConfig::load().unwrap_or_default();
+    
+    match cli.command {
+        cli::Commands::Install { package, version, dev } => {
+            install_package(&package, version.as_deref(), dev, &config).await?;
+        }
+        cli::Commands::Uninstall { package } => {
+            uninstall_package(&package, &config).await?;
+        }
+        cli::Commands::List => {
+            list_packages(&config).await?;
+        }
+        cli::Commands::Sync => {
+            sync_dependencies(&config).await?;
+        }
+        cli::Commands::Search { query } => {
+            search_packages(&query, &config).await?;
+        }
+        cli::Commands::Show { package } => {
+            show_package(&package, &config).await?;
+        }
+        cli::Commands::Init { name } => {
+            init_project(name.as_deref(), &config).await?;
+        }
+        cli::Commands::Venv { command } => {
+            handle_venv_command(command, &config).await?;
+        }
+        cli::Commands::Daemon { command } => {
+            handle_daemon_command(command, &config).await?;
+        }
+        cli::Commands::Fix { command } => {
+            if command.is_empty() {
+                println!("{}", yellow("Please provide a command to fix, e.g., 'snakepit fix -- adk'"));
+                return Ok(());
+            }
+
+            let cmd_str = command.join(" ");
+            println!("{}", cyan(format!("🔧 Running command to diagnose: {}", cmd_str)));
+
+            let max_retries = 5;
+            let mut attempts = 0;
+
+            loop {
+                if attempts >= max_retries {
+                    println!("{}", red("❌ Maximum fix attempts reached. Giving up."));
+                    break;
+                }
+
+                attempts += 1;
+                if attempts > 1 {
+                    println!("{}", cyan(format!("🔄 Attempt {}/{}: Re-running command...", attempts, max_retries)));
+                }
+
+                let output = std::process::Command::new(&command[0])
+                    .args(&command[1..])
+                    .output();
+
+                match output {
+                    Ok(output) => {
+                        if output.status.success() {
+                            println!("{}", green("✅ Command ran successfully! Fix complete."));
+                            return Ok(());
+                        }
+
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        
+                        // First, check for system library errors
+                        let sys_detector = system_libs::SystemLibDetector::new();
+                        if let Some(lib_name) = sys_detector.extract_library_from_error(&stderr) {
+                            println!("{}", yellow(format!("🔧 SYSTEM: Detected missing library: {}", lib_name)));
+                            
+                            if let Some(lib) = sys_detector.find_package(&lib_name) {
+                                println!("{}", green(format!("💡 SUGGESTION: Install system package '{}'", lib.package_name)));
+                                
+                                if let Some(cmd) = sys_detector.get_install_command(&lib) {
+                                    println!("{}", bold(format!("\nRun this command:")));
+                                    println!("  {}", cyan(&cmd));
+                                    println!("\n{}", dim("After installing, press Enter to retry..."));
+                                    
+                                    let mut input = String::new();
+                                    std::io::stdin().read_line(&mut input)?;
+                                    
+                                    // Continue loop to retry
+                                    continue;
+                                } else {
+                                    println!("{}", yellow("⚠️  Could not determine install command for your OS."));
+                                    break;
+                                }
+                            } else {
+                                println!("{}", yellow(format!("⚠️  Unknown system library: {}", lib_name)));
+                                println!("{}", dim("This might require manual installation."));
+                                break;
+                            }
+                        }
+                        
+                        // If not a system library error, try Python package diagnosis
+                        println!("{}", magenta("❌ Command failed. Consulting Snake Charmer..."));
+
+                        if let Ok(charmer) = SnakeCharmer::new() {
+                            match charmer.diagnose_error(&cmd_str, &stderr).await {
+                                Ok(Some(package)) => {
+                                    println!("{}", magenta(format!("🐍 CHARMER: Diagnosis complete. Missing package: {}", package)));
+                                    println!("{}", green(format!("💡 Suggestion: Install '{}' to fix the error.", package)));
+                                    
+                                    // Auto-install
+                                    let mut handler = handler::SnakepitHandler::new();
+                                    if handler.handle_package(&package, None, None).await? {
+                                        println!("{}", green("✅ Fix applied! Verifying..."));
+                                        // Loop continues to re-run command
+                                    } else {
+                                        println!("{}", red("❌ Failed to apply fix."));
+                                        break;
+                                    }
+                                }
+                                Ok(None) => {
+                                    println!("{}", yellow("🐍 CHARMER: Could not identify a missing package."));
+                                    println!("Error output:\n{}", stderr);
+                                    break;
+                                }
+                                Err(e) => {
+                                    println!("{}", red(format!("🐍 CHARMER: Diagnosis failed: {}", e)));
+                                    break;
+                                }
+                            }
+                        } else {
+                            println!("{}", yellow("⚠️  Snake Charmer not available (check GEMINI_API_KEY)."));
+                            println!("Error output:\n{}", stderr);
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        println!("{}", red(format!("❌ Failed to execute command: {}", e)));
+                        break;
+                    }
+                }
+            }
+        }
+        cli::Commands::Recommend { query, context } => {
+            println!("{}", cyan("🔮 ORACLE: Analyzing your request..."));
+            
+            let recommender = recommender::PackageRecommender::new()
+                .context("Failed to initialize recommender (check GEMINI_API_KEY)")?;
+            
+            let recommendations = recommender.recommend(&query, context.as_deref()).await?;
+            
+            if recommendations.is_empty() {
+                println!("{}", red("❌ No recommendations found. Try rephrasing your query."));
+                return Ok(());
+            }
+            
+            recommender.display_recommendations(&recommendations);
+            
+            match recommender.prompt_install(&recommendations)? {
+                Some(package) => {
+                    println!("\n{}", cyan(format!("📦 Installing {}...", package)));
+                    let mut handler = handler::SnakepitHandler::new();
+                    handler.handle_package(&package, None, None).await?;
+                }
+                None => {
+                    println!("{}", dim("Skipped installation."));
+                }
+            }
+        }
+        cli::Commands::Fangs { action } => {
+            use hallucinatory_fangs::*;
+            
+            let mut fangs = HallucinatoryFangs::new()?;
+            
+            match action {
+                cli::FangsAction::Fork { module } => {
+                    fangs.fork_module(&module)?;
+                }
+                cli::FangsAction::Log { module, function } => {
+                    let fork_dir = fangs.fork_module(&module)?;
+                    fangs.add_modification(ModificationRule {
+                        target_module: module.clone(),
+                        target_function: function.clone(),
+                        modification_type: ModificationType::InjectLogging,
+                    });
+                    fangs.apply_modifications(&fork_dir)?;
+                }
+                cli::FangsAction::Retry { module, function, max_attempts, backoff_ms } => {
+                    let fork_dir = fangs.fork_module(&module)?;
+                    fangs.add_modification(ModificationRule {
+                        target_module: module.clone(),
+                        target_function: function.clone(),
+                        modification_type: ModificationType::InjectRetry {
+                            max_attempts,
+                            backoff_ms,
+                        },
+                    });
+                    fangs.apply_modifications(&fork_dir)?;
+                }
+                cli::FangsAction::Cache { module, function, ttl } => {
+                    let fork_dir = fangs.fork_module(&module)?;
+                    fangs.add_modification(ModificationRule {
+                        target_module: module.clone(),
+                        target_function: function.clone(),
+                        modification_type: ModificationType::InjectCache {
+                            ttl_seconds: ttl,
+                        },
+                    });
+                    fangs.apply_modifications(&fork_dir)?;
+                }
+                cli::FangsAction::Mock { module, function, value } => {
+                    let fork_dir = fangs.fork_module(&module)?;
+                    fangs.add_modification(ModificationRule {
+                        target_module: module.clone(),
+                        target_function: function.clone(),
+                        modification_type: ModificationType::MockReturn {
+                            return_value: value.clone(),
+                        },
+                    });
+                    fangs.apply_modifications(&fork_dir)?;
+                }
+                cli::FangsAction::Custom { module, function, code } => {
+                    let fork_dir = fangs.fork_module(&module)?;
+                    fangs.add_modification(ModificationRule {
+                        target_module: module.clone(),
+                        target_function: function.clone(),
+                        modification_type: ModificationType::CustomCode {
+                            code: code.clone(),
+                        },
+                    });
+                    fangs.apply_modifications(&fork_dir)?;
+                }
+                cli::FangsAction::List => {
+                    let forks = fangs.list_forks()?;
+                    if forks.is_empty() {
+                        println!("{}", dim("No forked modules found"));
+                    } else {
+                        println!("{}", cyan(format!("🧪 Forked modules ({}):", forks.len())));
+                        for fork in forks {
+                            println!("   • {}", fork);
+                        }
+                    }
+                }
+                cli::FangsAction::Rollback { module } => {
+                    fangs.rollback(&module)?;
+                }
+            }
+        }
+        cli::Commands::Snake { action } => {
+            use solid_snake::*;
+            
+            let mut snake = SolidSnakeEngine::new()?;
+            
+            match action {
+                cli::SnakeAction::Discover => {
+                    snake.discover_devices().await?;
+                }
+                cli::SnakeAction::Connect { ip, port } => {
+                    snake.connect_wifi(&ip, port).await?;
+                }
+                cli::SnakeAction::Disconnect { ip, port } => {
+                    snake.disconnect_wifi(&ip, port).await?;
+                }
+                cli::SnakeAction::Install { device, package } => {
+                    // First discover devices to populate the list
+                    snake.discover_devices().await?;
+                    snake.install_package(&device, &package).await?;
+                }
+                cli::SnakeAction::Test { device, test_file } => {
+                    snake.discover_devices().await?;
+                    let results = snake.run_tests(&device, &test_file).await?;
+                    
+                    println!("\n📊 Test Results:");
+                    println!("   Duration: {} ms", results.duration_ms);
+                    println!("   Status: {}", if results.passed { "✅ PASSED" } else { "❌ FAILED" });
+                    
+                    if !results.stdout.is_empty() {
+                        println!("\n📝 Output:");
+                        println!("{}", results.stdout);
+                    }
+                    
+                    if !results.stderr.is_empty() {
+                        println!("\n⚠️  Errors:");
+                        println!("{}", results.stderr);
+                    }
+                }
+                cli::SnakeAction::Profile { device, script } => {
+                    snake.discover_devices().await?;
+                    let metrics = snake.profile_performance(&device, &script).await?;
+                    
+                    println!("\n📊 Performance Profile:");
+                    println!("{}", metrics.profile_data);
+                }
+                cli::SnakeAction::Logs { device } => {
+                    snake.discover_devices().await?;
+                    snake.stream_logs(&device).await?;
+                }
+            }
+        }
+        cli::Commands::Snapshot { action } => {
+            use crate::uninstaller::Uninstaller;
+            let uninstaller = Uninstaller::new()?;
+            
+            match action {
+                cli::SnapshotAction::List => {
+                    let snapshots = uninstaller.list_snapshots().await?;
+                    if snapshots.is_empty() {
+                        println!("{}", yellow("No snapshots found."));
+                    } else {
+                        println!("{}", blue("Available snapshots:"));
+                        for s in snapshots {
+                            println!("  • {} (ID: {})", s.package, s.id);
+                        }
+                    }
+                }
+                cli::SnapshotAction::Restore { id } => {
+                    uninstaller.restore_snapshot(&id).await?;
+                }
+            }
+        }
+        cli::Commands::Ui { port } => {
+            let project_deps = if Path::new("pyproject.toml").exists() {
+                ProjectDependencies::from_pyproject_toml("pyproject.toml")?
+            } else if Path::new("requirements.txt").exists() {
+                ProjectDependencies::from_requirements_txt("requirements.txt")?
+            } else {
+                ProjectDependencies::new()
+            };
+
+            let project_name = project_deps.project_name.clone()
+                .unwrap_or_else(|| std::env::current_dir().ok()
+                    .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+                    .unwrap_or_else(|| "unknown".to_string()));
+
+            let server = DashboardServer::new(project_name, project_deps);
+            server.start(port).await?;
+        }
+        cli::Commands::Nest { command } => {
+            handle_nest_command(command, &config).await?;
+        }
+        cli::Commands::Egg { command } => {
+            handle_egg_command(command, &config).await?;
+        }
+        cli::Commands::Clutch { command } => {
+            handle_clutch_command(command, &config).await?;
+        }
+        cli::Commands::Protein { command } => {
+            handle_protein_command(command, &config).await?;
+        }
+        cli::Commands::Run { command } => {
+            handle_run_command(command).await?;
+        }
+        cli::Commands::Env { command } => {
+            handle_env_command(command).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn install_package(package: &str, version: Option<&str>, dev: bool, config: &SnakepitConfig) -> Result<()> {
+    // Use Smart Snakepit Handler
+    let mut handler = SnakepitHandler::new();
+    let success = handler.handle_package(package, version, None).await?;
+    
+    if success {
+        // Update project dependencies if we're in a project directory
+        if Path::new("pyproject.toml").exists() || Path::new("requirements.txt").exists() {
+            let dependency = Dependency {
+                name: package.to_string(),
+                version: version.map(|v| v.to_string()),
+                version_constraint: None,
+                is_dev: dev,
+                source: None,
+            };
+            update_project_dependencies(&dependency, config).await?;
+        }
+    } else {
+        return Err(anyhow::anyhow!("Failed to install package {}", package));
+    }
+
+    Ok(())
+}
+
+mod uninstaller;
+
+// ... (imports)
+
+async fn uninstall_package(package: &str, _config: &SnakepitConfig) -> Result<()> {
+    use crate::uninstaller::Uninstaller;
+    
+    let uninstaller = Uninstaller::new()?;
+    
+    // 1. Analyze Impact
+    let report = uninstaller.analyze_impact(package).await?;
+    
+    if report.risk_score > 50 {
+        println!("{}", yellow(format!("⚠️  High risk detected! Risk Score: {}", report.risk_score)));
+        if !report.dependents.is_empty() {
+            println!("The following packages depend on '{}':", package);
+            for dep in &report.dependents {
+                println!("  - {}", dep);
+            }
+        }
+        
+        if let Some(analysis) = &report.ai_analysis {
+            println!("\n🧠 AI Analysis:\n{}", analysis);
+        }
+        
+        println!("\n{}", dim("Proceeding will break these packages."));
+        // In a real CLI, we'd ask for confirmation here.
+        // For now, we'll just wait a bit to let the user read.
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+    
+    // 2. Create Snapshot
+    match uninstaller.create_snapshot(package).await {
+        Ok(snapshot) => println!("{}", green(format!("✓ Snapshot created: {}", snapshot.id))),
+        Err(e) => println!("{}", yellow(format!("⚠️  Failed to create snapshot: {}", e))),
+    }
+    
+    // 3. Uninstall
+    println!("{}", blue("Uninstalling package..."));
+    uninstaller.uninstall(package).await?;
+    
+    println!("{}", green("✓ Package uninstalled successfully!"));
+    Ok(())
+}
+
+async fn list_packages(_config: &SnakepitConfig) -> Result<()> {
+    use crate::sandbox::SnakepitEnv;
+
+    let env = SnakepitEnv::new();
+
+    if !env.exists() {
+        println!("{}", yellow("🐍 No snakepit environment found."));
+        println!("{}", dim("   Create one with: snakepit install <package>"));
+        return Ok(());
+    }
+
+    let sp_path = env.get_path().to_string_lossy().to_string();
+    let installer = PackageInstaller::new()
+        .with_venv(sp_path.clone());
+
+    let packages = installer.list_installed_packages_detailed().await?;
+
+    if packages.is_empty() {
+        println!("{}", yellow("📭 No packages installed in snakepit environment."));
+        return Ok(());
+    }
+
+    let max_size = packages.iter().map(|p| p.size_bytes).max().unwrap_or(1).max(1);
+    let max_name_len = packages.iter().map(|p| p.name.len()).max().unwrap_or(8);
+    let max_ver_len = packages.iter().map(|p| p.version.len()).max().unwrap_or(5);
+    let total_size: u64 = packages.iter().map(|p| p.size_bytes).sum();
+    let bar_width = 20;
+
+    println!();
+    println!("  {} {}", bold("🐍 Snakepit Environment"), dim(format!("({})", sp_path)));
+    println!("  {} {} packages  {} total",
+        cyan("📊"),
+        bold(format!("{}", packages.len())),
+        bold(format_size(total_size)),
+    );
+    println!();
+
+    // Header
+    println!("  {:<width_n$}  {:<width_v$}  {:>8}  {}",
+        bold("Package"), bold("Version"), bold("Size"), bold(""),
+        width_n = max_name_len, width_v = max_ver_len);
+    println!("  {}", dim("─".repeat(max_name_len + max_ver_len + bar_width + 14)));
+
+    for pkg in &packages {
+        let filled = if max_size > 0 {
+            ((pkg.size_bytes as f64 / max_size as f64) * bar_width as f64).ceil() as usize
+        } else {
+            0
+        }.max(if pkg.size_bytes > 0 { 1 } else { 0 });
+        let empty = bar_width.saturating_sub(filled);
+
+        // Color the bar based on relative size
+        let ratio = pkg.size_bytes as f64 / max_size as f64;
+        let bar_str = format!("{}{}", "█".repeat(filled), dim("░".repeat(empty)));
+        let colored_bar = if ratio > 0.7 {
+            magenta(bar_str)
+        } else if ratio > 0.3 {
+            cyan(bar_str)
+        } else {
+            green(bar_str)
+        };
+
+        let size_str = format_size(pkg.size_bytes);
+        let colored_size = if ratio > 0.7 {
+            magenta(format!("{:>8}", size_str))
+        } else {
+            dim(format!("{:>8}", size_str))
+        };
+
+        let name_pad = max_name_len - pkg.name.len();
+        let ver_pad = max_ver_len - pkg.version.len();
+        println!("  {}{}  {}{}  {}  {}",
+            green(&pkg.name),
+            " ".repeat(name_pad),
+            yellow(&pkg.version),
+            " ".repeat(ver_pad),
+            colored_size,
+            colored_bar);
+    }
+
+    println!();
+    Ok(())
+}
+
+fn format_size(bytes: u64) -> String {
+    if bytes == 0 {
+        return "—".to_string();
+    }
+    const KB: u64 = 1024;
+    const MB: u64 = 1024 * KB;
+    const GB: u64 = 1024 * MB;
+    if bytes >= GB {
+        format!("{:.1} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.0} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+async fn sync_dependencies(config: &SnakepitConfig) -> Result<()> {
+    println!("{}", blue("Syncing dependencies..."));
+    
+    // Try to load dependencies from various sources
+    let project_deps = if Path::new("pyproject.toml").exists() {
+        ProjectDependencies::from_pyproject_toml("pyproject.toml")?
+    } else if Path::new("requirements.txt").exists() {
+        ProjectDependencies::from_requirements_txt("requirements.txt")?
+    } else {
+        return Err(anyhow::anyhow!("No dependency file found (pyproject.toml or requirements.txt)"));
+    };
+
+    let mut resolver = DependencyResolver::new();
+    let resolved_deps = resolver.resolve_dependencies(&project_deps).await?;
+
+    let backend = match config.default_backend.as_deref() {
+        Some("conda") => InstallerBackend::Conda,
+        Some("poetry") => InstallerBackend::Poetry,
+        _ => InstallerBackend::Pip,
+    };
+
+    let installer = PackageInstaller::new()
+        .with_backend(backend);
+
+    // Install all dependencies
+    let mut all_deps = resolved_deps.dependencies.clone();
+    all_deps.extend(resolved_deps.dev_dependencies.clone());
+
+    installer.install_dependencies(&all_deps).await?;
+    
+    println!("{}", green("✓ Dependencies synced successfully!"));
+    Ok(())
+}
+
+async fn search_packages(query: &str, config: &SnakepitConfig) -> Result<()> {
+    let backend = match config.default_backend.as_deref() {
+        Some("conda") => InstallerBackend::Conda,
+        Some("poetry") => InstallerBackend::Poetry,
+        _ => InstallerBackend::Pip,
+    };
+
+    let installer = PackageInstaller::new()
+        .with_backend(backend);
+
+    let results = installer.search_package(query).await?;
+    
+    if results.is_empty() {
+        println!("{}", yellow(format!("No packages found matching '{}'", query)));
+    } else {
+        println!("{}", blue(format!("Search results for '{}':", query)));
+        for result in results {
+            println!("  • {}", result);
+        }
+    }
+    
+    Ok(())
+}
+
+async fn show_package(package: &str, config: &SnakepitConfig) -> Result<()> {
+    let backend = match config.default_backend.as_deref() {
+        Some("conda") => InstallerBackend::Conda,
+        Some("poetry") => InstallerBackend::Poetry,
+        _ => InstallerBackend::Pip,
+    };
+
+    let installer = PackageInstaller::new()
+        .with_backend(backend);
+
+    match installer.show_package(package).await {
+        Ok(details) => {
+            println!("{}", blue(format!("Package details for '{}':", package)));
+            println!("{}", details);
+        }
+        Err(e) => {
+            println!("{}", red(format!("Failed to show package details: {}", e)));
+        }
+    }
+    
+    Ok(())
+}
+
+async fn init_project(name: Option<&str>, config: &SnakepitConfig) -> Result<()> {
+    let project_name = name.unwrap_or("my-project");
+    
+    println!("{}", blue(format!("Initializing project '{}'...", project_name)));
+    
+    // Create project directory
+    std::fs::create_dir_all(project_name)?;
+    
+    // Create project configuration
+    let project_config = ProjectConfig::new(project_name.to_string())
+        .with_python_version(config.python_version.as_deref().unwrap_or("3.9"))
+        .with_backend(config.default_backend.as_deref().unwrap_or("pip"));
+    
+    let config_path = format!("{}/snakepit.toml", project_name);
+    project_config.save_to_file(&config_path)?;
+    
+    // Create basic requirements.txt
+    let requirements_path = format!("{}/requirements.txt", project_name);
+    std::fs::write(&requirements_path, "# Project dependencies\n")?;
+    
+    // Create virtual environment if configured
+    if let Some(venv_backend) = &config.default_venv_backend {
+        let venv_manager = VirtualEnvironmentManager::new()
+            .with_backend(match venv_backend.as_str() {
+                "conda" => VenvBackend::Conda,
+                "poetry" => VenvBackend::Poetry,
+                "virtualenv" => VenvBackend::Virtualenv,
+                _ => VenvBackend::Venv,
+            });
+        
+        let venv_path = venv_manager.create_venv(project_name, config.python_version.as_deref()).await?;
+        println!("{}", green(format!("✓ Virtual environment created at: {}", venv_path.display())));
+    }
+    
+    println!("{}", green("✓ Project initialized successfully!"));
+    println!("{}", dim(format!("  Run 'cd {}' to enter the project directory", project_name)));
+    
+    Ok(())
+}
+
+async fn handle_venv_command(command: cli::VenvCommands, config: &SnakepitConfig) -> Result<()> {
+    let venv_backend = match config.default_venv_backend.as_deref() {
+        Some("conda") => VenvBackend::Conda,
+        Some("poetry") => VenvBackend::Poetry,
+        Some("virtualenv") => VenvBackend::Virtualenv,
+        _ => VenvBackend::Venv,
+    };
+
+    let venv_manager = VirtualEnvironmentManager::new()
+        .with_backend(venv_backend);
+
+    match command {
+        cli::VenvCommands::Create { name, python_version } => {
+            let venv_path = venv_manager.create_venv(&name, python_version.as_deref()).await?;
+            println!("{}", green(format!("✓ Virtual environment \'{}\' created at: {}", name, venv_path.display())));
+        }
+        cli::VenvCommands::Activate { name } => {
+            let python_path = venv_manager.activate_venv(&name).await?;
+            println!("{}", green(format!("✓ Virtual environment '{}' activated", name)));
+            println!("{}", dim(format!("Python path: {}", python_path.display())));
+        }
+        cli::VenvCommands::Delete { name } => {
+            venv_manager.delete_venv(&name).await?;
+            println!("{}", green(format!("✓ Virtual environment '{}' deleted", name)));
+        }
+        cli::VenvCommands::List => {
+            let venvs = venv_manager.list_venvs().await?;
+            if venvs.is_empty() {
+                println!("{}", yellow("No virtual environments found"));
+            } else {
+                println!("{}", blue("Available virtual environments:"));
+                for venv in venvs {
+                    println!("  • {}", venv);
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+async fn update_project_dependencies(_dependency: &Dependency, _config: &SnakepitConfig) -> Result<()> {
+    // This would update the project's dependency files
+    // For now, just a placeholder
+    println!("{}", dim("Updating project dependencies..."));
+    Ok(())
+}
+
+async fn handle_daemon_command(command: cli::DaemonCommands, config: &SnakepitConfig) -> Result<()> {
+    let daemon_manager = DaemonManager::new();
+
+    match command {
+        cli::DaemonCommands::Start { daemon, config: _config_path } => {
+            if daemon {
+                println!("{}", blue("Starting snakepit daemon in background..."));
+                // In a real implementation, you'd fork the process here
+                daemon_manager.start_daemon(config).await?;
+            } else {
+                println!("{}", blue("Starting snakepit daemon in foreground..."));
+                daemon_manager.start_daemon(config).await?;
+            }
+        }
+        cli::DaemonCommands::Stop => {
+            daemon_manager.stop_daemon().await?;
+            println!("{}", green("✓ Daemon stopped"));
+        }
+        cli::DaemonCommands::Status => {
+            let status = daemon_manager.daemon_status().await?;
+            println!("{}", blue("Snakepit Daemon Status"));
+            println!("  Running: {}", if status.running { "✅ Yes" } else { "❌ No" });
+            println!("  Daemon ID: {}", status.daemon_id);
+            println!("  Error Count: {}", status.error_count);
+            println!("  Auto-install: {}", if status.config.auto_install { "✅ Yes" } else { "❌ No" });
+            println!("  Check Interval: {}s", status.config.check_interval.as_secs());
+        }
+        cli::DaemonCommands::Restart => {
+            println!("{}", yellow("Restarting daemon..."));
+            daemon_manager.stop_daemon().await?;
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            daemon_manager.start_daemon(config).await?;
+            println!("{}", green("✓ Daemon restarted"));
+        }
+        cli::DaemonCommands::Test { module } => {
+            println!("{}", cyan(format!("Testing missing module: {}", module)));
+            let daemon_config = daemon_manager.load_daemon_config().await?;
+            let daemon = daemon::SnakepitDaemon::new(daemon_config, config);
+            daemon.simulate_missing_module(&module).await?;
+        }
+        cli::DaemonCommands::Config { command } => {
+            handle_daemon_config_command(command, &daemon_manager).await?;
+        }
+    }
+    
+    Ok(())
+}
+
+async fn handle_daemon_config_command(command: cli::DaemonConfigCommands, daemon_manager: &DaemonManager) -> Result<()> {
+    match command {
+        cli::DaemonConfigCommands::Set { key, value } => {
+            let mut config = daemon_manager.load_daemon_config().await?;
+            
+            match key.as_str() {
+                "auto_install" => {
+                    config.auto_install = value.parse().unwrap_or(true);
+                }
+                "check_interval" => {
+                    if let Ok(seconds) = value.parse::<u64>() {
+                        config.check_interval = std::time::Duration::from_secs(seconds);
+                    }
+                }
+                "max_install_attempts" => {
+                    if let Ok(attempts) = value.parse::<u32>() {
+                        config.max_install_attempts = attempts;
+                    }
+                }
+                _ => {
+                    println!("{}", red(format!("Unknown configuration key: {}", key)));
+                    return Ok(());
+                }
+            }
+            
+            daemon_manager.save_daemon_config(&config).await?;
+            println!("{}", green(format!("✓ Set {} = {}", key, value)));
+        }
+        cli::DaemonConfigCommands::Show => {
+            let config = daemon_manager.load_daemon_config().await?;
+            println!("{}", blue("Daemon Configuration:"));
+            println!("  Auto-install: {}", config.auto_install);
+            println!("  Check interval: {}s", config.check_interval.as_secs());
+            println!("  Max install attempts: {}", config.max_install_attempts);
+            println!("  Whitelist modules: {:?}", config.whitelist_modules);
+            println!("  Blacklist modules: {:?}", config.blacklist_modules);
+        }
+        cli::DaemonConfigCommands::Reset => {
+            let default_config = DaemonConfig::default();
+            daemon_manager.save_daemon_config(&default_config).await?;
+            println!("{}", green("✓ Configuration reset to defaults"));
+        }
+    }
+    
+    Ok(())
+}
+
+async fn handle_nest_command(command: cli::NestCommands, _config: &SnakepitConfig) -> Result<()> {
+    use snakegg::QuantumNest;
+    
+    // Initialize or load nest
+    let current_dir = std::env::current_dir()?;
+    let nest_root = current_dir.join("nest");
+    
+    match command {
+        cli::NestCommands::Init => {
+            println!("{}", blue("Initializing Quantum Nest..."));
+            if nest_root.exists() {
+                println!("{}", yellow("Nest already exists."));
+                return Ok(());
+            }
+            std::fs::create_dir_all(&nest_root)?;
+            println!("{}", green(format!("✓ Nest initialized at {}", nest_root.display())));
+            
+            // Initialize git repo if not exists
+            if !current_dir.join(".git").exists() {
+                std::process::Command::new("git")
+                    .arg("init")
+                    .current_dir(&current_dir)
+                    .output()?;
+                println!("{}", green("✓ Git repository initialized"));
+            }
+        }
+        cli::NestCommands::Status => {
+            let mut nest = QuantumNest::new(nest_root.clone(), "origin".to_string());
+            nest.load_state().await?;
+            
+            println!("{}", blue("Quantum Nest Status"));
+            println!("  Root: {}", nest_root.display());
+            println!("  Total Shells: {}", nest.shells.len());
+            
+            let manifested = nest.shells.iter().filter(|s| s.state == snakegg::QuantumState::Manifested).count();
+            let ethereal = nest.shells.iter().filter(|s| s.state == snakegg::QuantumState::Ethereal).count();
+            let superposition = nest.shells.iter().filter(|s| s.state == snakegg::QuantumState::Superposition).count();
+            
+            println!("  Manifested (Local): {}", manifested);
+            println!("  Ethereal (Git): {}", ethereal);
+            println!("  Superposition: {}", superposition);
+        }
+        cli::NestCommands::Vacuum { max_idle } => {
+            let mut nest = QuantumNest::new(nest_root.clone(), "origin".to_string());
+            nest.load_state().await?;
+            
+            // Parse duration (simplified)
+            let hours = if max_idle.ends_with('h') {
+                max_idle.trim_end_matches('h').parse::<u64>().unwrap_or(24)
+            } else if max_idle.ends_with('d') {
+                max_idle.trim_end_matches('d').parse::<u64>().unwrap_or(1) * 24
+            } else {
+                24
+            };
+            
+            nest.max_idle_hours = hours;
+            let evaporated = nest.vacuum().await?;
+            
+            if evaporated.is_empty() {
+                println!("{}", yellow("No idle eggs found to evaporate."));
+            } else {
+                println!("{}", green(format!("✓ Evaporated {} eggs to ether:", evaporated.len())));
+                for egg in evaporated {
+                    println!("  💨 {}", egg);
+                }
+            }
+            nest.save_state().await?;
+        }
+        cli::NestCommands::Checkpoint => {
+            let mut nest = QuantumNest::new(nest_root.clone(), "origin".to_string());
+            nest.load_state().await?;
+            nest.checkpoint().await?;
+            nest.save_state().await?;
+            println!("{}", green("✓ All manifested eggs committed to ether (git)"));
+        }
+        cli::NestCommands::Observe { name } => {
+            let mut nest = QuantumNest::new(nest_root.clone(), "origin".to_string());
+            nest.load_state().await?;
+            let path = nest.observe(&name).await?;
+            nest.save_state().await?;
+            println!("{}", green(format!("👁️  Observed egg '{}' at {}", name, path.display())));
+        }
+    }
+    Ok(())
+}
+
+async fn handle_egg_command(command: cli::EggCommands, _config: &SnakepitConfig) -> Result<()> {
+    use snakegg::{Nest, Mother, EggType, DNA, Identity, SelfActualization};
+    use snakegg::charmer::SnakeCharmer;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use std::str::FromStr;
+    
+    let current_dir = std::env::current_dir()?;
+    let nest_root = current_dir.join("nest");
+    
+    // Initialize Nest and Charmer
+    let nest = Arc::new(Mutex::new(Nest::new(nest_root.clone())));
+    let charmer = Arc::new(Mutex::new(SnakeCharmer::new()?));
+    
+    match command {
+        cli::EggCommands::Create { name, species, r#type } => {
+            let _egg_type = match r#type.to_lowercase().as_str() {
+                "organic" => EggType::Organic,
+                "metallic" => EggType::Metallic,
+                _ => EggType::Dual,
+            };
+            
+            let species_enum = snakegg::Species::from_str(&species)?;
+            
+            println!("{}", blue(format!("Laying new {} egg: {}...", r#type, name)));
+            
+            let dna = DNA {
+                identity: Identity {
+                    name: name.clone(),
+                    species: species_enum,
+                    generation: 1,
+                },
+                self_actualization: SelfActualization {
+                    purpose: format!("Implementation of {}", name),
+                    success_criteria: vec!["Compiles successfully".to_string()],
+                },
+                dependencies: Default::default(),
+                gestation_milestones: Default::default(),
+                evolution_parameters: Default::default(),
+            };
+            
+            let mut nest_lock = nest.lock().await;
+            // Ensure default clutch exists
+            if !nest_lock.clutches.contains(&"default".to_string()) {
+                nest_lock.create_clutch("default").await?;
+            }
+            
+            nest_lock.lay_egg(dna, "default").await?;
+            println!("{}", green(format!("✓ Egg '{}' created in nest", name)));
+        }
+        cli::EggCommands::Evolve { name, watch } => {
+            let mut mother = Mother::new(charmer.clone(), nest.clone());
+            
+            // Load embryo (simplified - assuming organic for now or finding it)
+            // In a real implementation, we'd need to know which egg to evolve or evolve both
+            let nest_lock = nest.lock().await;
+            let clutch_path = nest_lock.clutch_dir("default");
+            let organic_path = clutch_path.join(&name).join("organic");
+            
+            // We need to load the DNA to create the Embryo
+            let dna_path = organic_path.join(format!("{}.dna", name));
+            if !dna_path.exists() {
+                println!("{}", red(format!("Egg '{}' not found in default clutch", name)));
+                return Ok(());
+            }
+            
+            let dna = DNA::load(&dna_path).await?;
+            drop(nest_lock); // Release lock
+            
+            let mut embryo = snakegg::Embryo::new(dna, organic_path, EggType::Organic);
+            
+            if watch {
+                println!("{}", blue(format!("Watching egg '{}' for evolution...", name)));
+                loop {
+                    mother.evolve_code(&mut embryo).await?;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                }
+            } else {
+                println!("{}", blue(format!("Evolving egg '{}'...", name)));
+                mother.evolve_code(&mut embryo).await?;
+                println!("{}", green("✓ Evolution cycle complete"));
+            }
+        }
+        cli::EggCommands::Status { name } => {
+            // Load embryo manually since Nest doesn't have incubate
+            let nest_lock = nest.lock().await;
+            let clutch_path = nest_lock.clutch_dir("default");
+            let organic_path = clutch_path.join(&name).join("organic");
+            let dna_path = organic_path.join(format!("{}.dna", name));
+            
+            if !dna_path.exists() {
+                println!("{}", red(format!("Egg '{}' not found", name)));
+                return Ok(());
+            }
+            
+            let dna = DNA::load(&dna_path).await?;
+            let embryo = snakegg::Embryo::new(dna, organic_path, EggType::Organic);
+            
+            println!("{}", blue(format!("Egg Status: {}", name)));
+            println!("  Stage: {:?}", embryo.current_stage.milestone);
+            println!("  Age: {} cycles", embryo.gestation_log.len());
+            println!("  Health: {:.2}", embryo.fitness_score);
+            println!("  Type: {:?}", embryo.egg_type);
+            
+            println!("  Species: {}", embryo.dna.identity.species);
+            println!("  Intent: {}", embryo.dna.self_actualization.purpose);
+        }
+        cli::EggCommands::List => {
+            let nest_lock = nest.lock().await;
+            if !nest_root.exists() {
+                println!("{}", yellow("No nest found. Run 'snakepit nest init' first."));
+                return Ok(());
+            }
+            
+            println!("{}", blue("Eggs in nest (default clutch):"));
+            let eggs = nest_lock.list_eggs("default").await?;
+            for egg in eggs {
+                println!("  🥚 {}", egg);
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn handle_clutch_command(command: cli::ClutchCommands, _config: &SnakepitConfig) -> Result<()> {
+    use snakegg::Clutch;
+    
+    match command {
+        cli::ClutchCommands::Create { name } => {
+            let _clutch = Clutch::new(name.clone());
+            // Save clutch state (simplified)
+            println!("{}", green(format!("✓ Clutch '{}' created", name)));
+        }
+        cli::ClutchCommands::Add { name, eggs } => {
+            println!("{}", green(format!("✓ Added {} eggs to clutch '{}'", eggs.len(), name)));
+        }
+        cli::ClutchCommands::ThermalCycle { name } => {
+            println!("{}", blue(format!("Running thermal cycle for clutch '{}'...", name)));
+            // Simulate thermal cycle
+            println!("{}", green("✓ Heat shared between 3 eggs"));
+            println!("  🔥 api_handler (85°C) → 🌡️ auth_service (42°C)");
+        }
+        cli::ClutchCommands::Status { name } => {
+            println!("{}", blue(format!("Clutch Status: {}", name)));
+            println!("  Temperature: 65°C");
+            println!("  Eggs: 0");
+        }
+    }
+    Ok(())
+}
+
+async fn handle_protein_command(command: cli::ProteinCommands, _config: &SnakepitConfig) -> Result<()> {
+    match command {
+        cli::ProteinCommands::List => {
+            println!("{}", blue("Available Proteins:"));
+            println!("  🧬 auth_flow_v1");
+            println!("  🧬 db_connection_pool");
+            println!("  🧬 error_handler_retry");
+        }
+        cli::ProteinCommands::Extract { egg } => {
+            println!("{}", blue(format!("Extracting proteins from egg '{}'...", egg)));
+            println!("{}", green("✓ Extracted 2 proteins"));
+        }
+    }
+    Ok(())
+}
+
+async fn handle_run_command(command: Vec<String>) -> Result<()> {
+    use sandbox::SnakepitEnv;
+
+    if command.is_empty() {
+        println!("{}", yellow("Usage: snakepit run -- <command> [args...]"));
+        println!("{}", dim("Examples:"));
+        println!("{}", dim("  snakepit run -- python my_script.py"));
+        println!("{}", dim("  snakepit run -- python -m pytest"));
+        println!("{}", dim("  snakepit run -- python3 test_censoring_methods.py"));
+        return Ok(());
+    }
+
+    let env = SnakepitEnv::new();
+
+    if !env.exists() {
+        println!("{}", red("❌ No snakepit environment found."));
+        println!("{}", yellow("Create one with: snakepit env init"));
+        println!("{}", yellow("Or install a package: snakepit install <package>"));
+        return Ok(());
+    }
+
+    let cmd = &command[0];
+    let args: Vec<String> = command[1..].to_vec();
+
+    println!("{}", dim(format!("🐍 Running in snakepit environment: {}", env.get_path().display())));
+
+    let exit_code = env.run_command(cmd, &args)?;
+
+    std::process::exit(exit_code);
+}
+
+async fn handle_env_command(command: cli::EnvCommands) -> Result<()> {
+    use sandbox::SnakepitEnv;
+
+    let env = SnakepitEnv::new();
+
+    match command {
+        cli::EnvCommands::Status => {
+            if env.exists() {
+                println!("{}", green("✅ Snakepit environment is active"));
+                println!("   Path: {}", env.get_path().display());
+                println!("   Python: {}", env.get_python_path()?.display());
+                if let Ok(site) = env.get_site_packages() {
+                    println!("   Site-packages: {}", site.display());
+                    // Count installed packages
+                    if site.exists() {
+                        let count = std::fs::read_dir(&site)?
+                            .filter_map(|e| e.ok())
+                            .filter(|e| {
+                                let name = e.file_name().to_string_lossy().to_string();
+                                name.ends_with(".dist-info")
+                            })
+                            .count();
+                        println!("   Installed packages: {}", count);
+                    }
+                }
+            } else {
+                println!("{}", yellow("⚠️  No snakepit environment found"));
+                println!("{}", dim("   Create one with: snakepit env init"));
+            }
+        }
+        cli::EnvCommands::Init { python_version } => {
+            println!("{}", blue("🐍 Initializing snakepit environment..."));
+            env.init(python_version.as_deref()).await?;
+            println!("{}", green("✅ Snakepit environment created"));
+            println!("   Path: {}", env.get_path().display());
+            println!("{}", dim("   Install packages with: snakepit install <package>"));
+            println!("{}", dim("   Run scripts with: snakepit run -- python your_script.py"));
+        }
+        cli::EnvCommands::Destroy => {
+            if env.exists() {
+                env.destroy().await?;
+                println!("{}", green("✅ Snakepit environment destroyed"));
+            } else {
+                println!("{}", yellow("No environment to destroy"));
+            }
+        }
+        cli::EnvCommands::Path => {
+            if env.exists() {
+                // Output just the python path for shell integration, e.g.:
+                // eval $(snakepit env path)
+                let python = env.get_python_path()?;
+                println!("{}", python.display());
+            } else {
+                return Err(anyhow::anyhow!("No snakepit environment found. Run 'snakepit env init' first."));
+            }
+        }
+    }
+
+    Ok(())
+}

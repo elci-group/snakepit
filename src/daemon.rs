@@ -2,14 +2,14 @@ use crate::installer::{PackageInstaller, InstallerBackend};
 use crate::config::SnakepitConfig;
 use crate::process_monitor::ProcessMonitor;
 use anyhow::Result;
-use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+use snakegg::native::style::{red, green, yellow, blue, cyan, dim};
 use snakegg::native::dirs;
 use snakegg::native::id;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use sysinfo::{Pid, Process, System};
+use sysinfo::{Pid, System};
 use tokio::fs;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::sleep;
@@ -228,7 +228,7 @@ impl SnakepitDaemon {
             // 6. Sync Logs
             {
                 let mut logger = self.logger.lock().await;
-                if let Err(e) = logger.sync().await {
+                if let Err(_e) = logger.sync().await {
                     // eprintln!("Log sync failed: {}", e);
                 }
             }

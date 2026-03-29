@@ -1,48 +1,66 @@
-//! Integration tests for PEP 440 version parsing and comparison
+use snakepit::pep440::{Version, VersionSpecifier};
+use std::str::FromStr;
 
-// Mock implementation for testing - replace with actual imports
-struct Version {
-    major: u32,
-    minor: u32,
-    patch: u32,
+#[test]
+fn test_version_parsing() {
+    let v = Version::from_str("1.2.3").unwrap();
+    assert_eq!(v.to_string(), "1.2.3");
+    assert!(!v.is_prerelease());
+
+    let v = Version::from_str("1.2.3a1").unwrap();
+    assert_eq!(v.to_string(), "1.2.3a1");
+    assert!(v.is_prerelease());
+    
+    let v = Version::from_str("1.2.3.post1").unwrap();
+    assert_eq!(v.to_string(), "1.2.3.post1");
+    
+    let v = Version::from_str("1.2.3.dev1").unwrap();
+    assert_eq!(v.to_string(), "1.2.3.dev1");
 }
 
-impl Version {
-    fn parse(s: &str) -> Result<Self, String> {
-        let parts: Vec<&str> = s.split('.').collect();
-        Ok(Version {
-            major: parts.get(0).and_then(|p| p.parse().ok()).unwrap_or(0),
-            minor: parts.get(1).and_then(|p| p.parse().ok()).unwrap_or(0),
-            patch: parts.get(2).and_then(|p| p.parse().ok()).unwrap_or(0),
-        })
-    }
+#[test]
+fn test_version_comparison() {
+    let v1 = Version::from_str("1.2.3").unwrap();
+    let v2 = Version::from_str("1.2.4").unwrap();
+    assert!(v1 < v2);
+    
+    let v1 = Version::from_str("1.2.3a1").unwrap();
+    let v2 = Version::from_str("1.2.3").unwrap();
+    assert!(v1 < v2); // Pre-release is older than release
+    
+    let v1 = Version::from_str("1.2.3").unwrap();
+    let v2 = Version::from_str("1.2.3.post1").unwrap();
+    assert!(v1 < v2); // Post-release is newer
 }
 
-#[cfg(test)]
-mod pep440_tests {
-    use super::*;
+#[test]
+fn test_version_specifiers() {
+    let v = Version::from_str("1.2.3").unwrap();
+    
+    let spec = VersionSpecifier::from_str("==1.2.3").unwrap();
+    assert!(spec.matches(&v));
+    
+    let spec = VersionSpecifier::from_str(">=1.2.0").unwrap();
+    assert!(spec.matches(&v));
+    
+    let spec = VersionSpecifier::from_str("<2.0.0").unwrap();
+    assert!(spec.matches(&v));
+    
+    let spec = VersionSpecifier::from_str("!=1.2.4").unwrap();
+    assert!(spec.matches(&v));
+    
+    let spec = VersionSpecifier::from_str("~=1.2").unwrap();
+    assert!(spec.matches(&v));
+}
 
-    #[test]
-    fn test_simple_version_parsing() {
-        let v = Version::parse("1.2.3").unwrap();
-        assert_eq!(v.major, 1);
-        assert_eq!(v.minor, 2);
-        assert_eq!(v.patch, 3);
-    }
-
-    #[test]
-    fn test_zero_version() {
-        let v = Version::parse("0.0.0").unwrap();
-        assert_eq!(v.major, 0);
-        assert_eq!(v.minor, 0);
-        assert_eq!(v.patch, 0);
-    }
-
-    #[test]
-    fn test_large_version_numbers() {
-        let v = Version::parse("100.200.300").unwrap();
-        assert_eq!(v.major, 100);
-        assert_eq!(v.minor, 200);
-        assert_eq!(v.patch, 300);
-    }
+#[test]
+fn test_complex_specifiers() {
+    let v = Version::from_str("1.2.3").unwrap();
+    
+    // Comma separated
+    let spec = VersionSpecifier::from_str(">=1.0.0, <2.0.0").unwrap();
+    assert!(spec.matches(&v));
+    
+    let spec = VersionSpecifier::from_str(">=1.5.0, <2.0.0").unwrap();
+    assert!(!spec.matches(&v));
 }

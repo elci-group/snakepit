@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+use snakegg::native::style::{red, green};
 use snakegg::native::progress::ProgressBar;
 use snakegg::native::which;
 

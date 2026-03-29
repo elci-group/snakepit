@@ -1,12 +1,11 @@
-use anyhow::{Result, Context};
+use anyhow::Result;
 use serde::{Serialize, Deserialize};
-use std::path::{Path, PathBuf};
-use std::collections::{HashMap, HashSet};
-use snakegg::native::style::{red, green, yellow, blue, cyan, magenta, bold, dim};
+use std::path::PathBuf;
+use snakegg::native::style::{green, blue, magenta, dim};
 use snakegg::native::dirs;
 use snakegg::native::datetime::DateTime;
 use snakegg::charmer::SnakeCharmer;
-use crate::installer::{PackageInstaller, InstallerBackend};
+use crate::installer::PackageInstaller;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImpactReport {

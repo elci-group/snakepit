@@ -2,7 +2,33 @@ use crate::resolver::ResolvedDependency;
 use anyhow::Result;
 use std::process::{Command, Stdio};
 use snakegg::native::progress::ProgressBar;
-use snakegg::native::style::{red, green, yellow, blue, cyan, bold, dim};
+use snakegg::native::style::{red, green, yellow, cyan, dim};
+use serde_json;
+
+#[derive(Debug, Clone)]
+pub struct PackageInfo {
+    pub name: String,
+    pub version: String,
+    pub size_bytes: u64,
+}
+
+fn dir_size(path: &std::path::Path) -> u64 {
+    if path.is_file() {
+        return path.metadata().map(|m| m.len()).unwrap_or(0);
+    }
+    let mut total: u64 = 0;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                total += dir_size(&p);
+            } else {
+                total += p.metadata().map(|m| m.len()).unwrap_or(0);
+            }
+        }
+    }
+    total
+}
 
 #[derive(Debug, Clone)]
 pub enum InstallerBackend {
@@ -19,6 +45,7 @@ impl InstallerBackend {
         Self::Native
     }
 
+    #[allow(dead_code)]
     fn command_exists(command: &str) -> bool {
         Command::new(command)
             .arg("--version")
@@ -180,6 +207,102 @@ impl PackageInstaller {
         }
     }
 
+    pub async fn list_installed_packages_detailed(&self) -> Result<Vec<PackageInfo>> {
+        let site_packages = self.find_site_packages();
+
+        // Use pip list --format=json for rich info, then measure sizes from site-packages
+        let mut cmd = Command::new("pip");
+        cmd.arg("list").arg("--format=json");
+
+        // --path needs the site-packages dir, not the venv root
+        if let Some(ref sp) = site_packages {
+            cmd.arg("--path").arg(sp);
+        }
+
+        let output = cmd.output()?;
+
+        let mut packages: Vec<PackageInfo> = if output.status.success() {
+            let json_str = String::from_utf8_lossy(&output.stdout);
+            serde_json::from_str::<Vec<serde_json::Value>>(&json_str)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|v| PackageInfo {
+                    name: v["name"].as_str().unwrap_or("").to_string(),
+                    version: v["version"].as_str().unwrap_or("?").to_string(),
+                    size_bytes: 0,
+                })
+                .filter(|p| !p.name.is_empty())
+                .collect()
+        } else {
+            // Fallback to basic list
+            let basic = self.list_installed_packages().await?;
+            basic.into_iter().map(|name| PackageInfo {
+                name,
+                version: String::from("?"),
+                size_bytes: 0,
+            }).collect()
+        };
+
+        // Measure sizes from site-packages
+        if let Some(sp) = site_packages {
+            for pkg in &mut packages {
+                pkg.size_bytes = Self::measure_package_size(&sp, &pkg.name);
+            }
+        }
+
+        packages.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        Ok(packages)
+    }
+
+    fn find_site_packages(&self) -> Option<std::path::PathBuf> {
+        if let Some(venv) = &self.venv_path {
+            let venv_path = std::path::Path::new(venv);
+            let lib = venv_path.join("lib");
+            if let Ok(entries) = std::fs::read_dir(&lib) {
+                for entry in entries.flatten() {
+                    if entry.file_name().to_string_lossy().starts_with("python") {
+                        let sp = entry.path().join("site-packages");
+                        if sp.exists() {
+                            return Some(sp);
+                        }
+                    }
+                }
+            }
+            return None;
+        }
+
+        // System site-packages
+        let home = snakegg::native::dirs::home_dir()?;
+        let lib = home.join(".local").join("lib");
+        if let Ok(entries) = std::fs::read_dir(&lib) {
+            for entry in entries.flatten() {
+                if entry.file_name().to_string_lossy().starts_with("python") {
+                    let sp = entry.path().join("site-packages");
+                    if sp.exists() {
+                        return Some(sp);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn measure_package_size(site_packages: &std::path::Path, package_name: &str) -> u64 {
+        let normalized = package_name.to_lowercase().replace('-', "_");
+        let mut total: u64 = 0;
+
+        if let Ok(entries) = std::fs::read_dir(site_packages) {
+            for entry in entries.flatten() {
+                let fname = entry.file_name().to_string_lossy().to_lowercase().replace('-', "_");
+                // Match package directories and .dist-info dirs
+                if fname.starts_with(&normalized) {
+                    total += dir_size(&entry.path());
+                }
+            }
+        }
+        total
+    }
+
     pub async fn search_package(&self, query: &str) -> Result<Vec<String>> {
         // For now, we'll only support PyPI search via native backend or pip
         // uv doesn't support search yet
@@ -199,9 +322,6 @@ impl PackageInstaller {
     }
 
     async fn install_with_native(&self, package: &str, version: Option<&str>) -> Result<()> {
-        use std::io::Cursor;
-        use zip::ZipArchive;
-
         // 1. Fetch metadata from PyPI (with caching)
         let resp = self.fetch_pypi_metadata_cached(package).await?;
         
@@ -523,7 +643,7 @@ impl PackageInstaller {
         Ok(())
     }
 
-    async fn uninstall_with_native(&self, package: &str) -> Result<()> {
+    async fn uninstall_with_native(&self, _package: &str) -> Result<()> {
         // Basic uninstall: remove the directory/file in site-packages
         // This is risky without reading RECORD, but for "bleeding edge" prototype it works.
         // We'll just warn that it's not fully implemented.
@@ -1013,7 +1133,6 @@ impl PackageInstaller {
         // Try to get filesystem stats
         #[cfg(target_os = "linux")]
         {
-            use std::os::unix::fs::MetadataExt;
             if let Ok(_metadata) = std::fs::metadata(_install_dir.parent().unwrap_or(_install_dir)) {
                 // This is a simplified check - in production would use statvfs
                 // For now, just ensure we can write

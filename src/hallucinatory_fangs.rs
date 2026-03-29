@@ -1,6 +1,5 @@
 use anyhow::Result;
 use std::path::PathBuf;
-use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 
 pub struct HallucinatoryFangs {

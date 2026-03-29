@@ -3,6 +3,183 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use crate::venv::VirtualEnvironmentManager;
 
+/// The persistent snakepit environment where packages live after approval.
+/// This is the environment that `snakepit run` uses to execute user scripts.
+pub struct SnakepitEnv {
+    path: PathBuf,
+    manager: VirtualEnvironmentManager,
+}
+
+impl SnakepitEnv {
+    /// Get the persistent environment (at ~/.snakepit/env/)
+    pub fn new() -> Self {
+        let base_path = Self::get_env_base();
+        let manager = VirtualEnvironmentManager::new()
+            .with_base_path(base_path.clone());
+        Self {
+            path: base_path.join("default"),
+            manager,
+        }
+    }
+
+    fn get_env_base() -> PathBuf {
+        if let Some(home) = snakegg::native::dirs::home_dir() {
+            home.join(".snakepit").join("env")
+        } else {
+            PathBuf::from(".snakepit").join("env")
+        }
+    }
+
+    /// Check if the persistent environment exists
+    pub fn exists(&self) -> bool {
+        self.path.exists() && self.get_python_path().map(|p| p.exists()).unwrap_or(false)
+    }
+
+    /// Create the persistent environment if it doesn't exist
+    pub async fn ensure_exists(&self) -> Result<()> {
+        if self.exists() {
+            return Ok(());
+        }
+        std::fs::create_dir_all(Self::get_env_base())?;
+        self.manager.create_venv("default", None).await?;
+        Ok(())
+    }
+
+    /// Create or recreate the environment with a specific Python version
+    pub async fn init(&self, python_version: Option<&str>) -> Result<()> {
+        if self.exists() {
+            self.manager.delete_venv("default").await?;
+        }
+        std::fs::create_dir_all(Self::get_env_base())?;
+        self.manager.create_venv("default", python_version).await?;
+        Ok(())
+    }
+
+    /// Destroy the persistent environment
+    pub async fn destroy(&self) -> Result<()> {
+        if self.exists() {
+            self.manager.delete_venv("default").await?;
+        }
+        Ok(())
+    }
+
+    /// Get the Python executable path within the persistent env
+    pub fn get_python_path(&self) -> Result<PathBuf> {
+        let python = if cfg!(target_os = "windows") {
+            self.path.join("Scripts").join("python.exe")
+        } else {
+            self.path.join("bin").join("python")
+        };
+        Ok(python)
+    }
+
+    /// Get the pip executable path
+    pub fn get_pip_path(&self) -> Result<PathBuf> {
+        let pip = if cfg!(target_os = "windows") {
+            self.path.join("Scripts").join("pip.exe")
+        } else {
+            self.path.join("bin").join("pip")
+        };
+        Ok(pip)
+    }
+
+    /// Get the env path
+    pub fn get_path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Get site-packages path
+    pub fn get_site_packages(&self) -> Result<PathBuf> {
+        self.manager.get_site_packages_path(&self.path)
+    }
+
+    /// Install a package into the persistent environment
+    pub async fn install_package(&self, package: &str, version: Option<&str>) -> Result<()> {
+        self.ensure_exists().await?;
+        let pip_path = self.get_pip_path()?;
+
+        let mut cmd = Command::new(&pip_path);
+        cmd.arg("install");
+
+        if let Some(ver) = version {
+            cmd.arg(format!("{}=={}", package, ver));
+        } else {
+            cmd.arg(package);
+        }
+
+        let output = cmd.output()?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(anyhow::anyhow!("Failed to install package in snakepit env: {}", error));
+        }
+
+        Ok(())
+    }
+
+    /// Run a script using the persistent environment's Python
+    pub fn run_script(&self, script_path: &Path, args: &[String]) -> Result<(bool, String, String)> {
+        let python = self.get_python_path()?;
+        if !python.exists() {
+            return Err(anyhow::anyhow!(
+                "Snakepit environment not found. Run 'snakepit env init' or 'snakepit install <package>' first."
+            ));
+        }
+
+        let output = Command::new(&python)
+            .arg(script_path)
+            .args(args)
+            .output()
+            .context("Failed to run script in snakepit environment")?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Ok((output.status.success(), stdout, stderr))
+    }
+
+    /// Run an arbitrary command with the persistent environment activated
+    /// (sets PATH and VIRTUAL_ENV so the env's Python/pip are used)
+    pub fn run_command(&self, command: &str, args: &[String]) -> Result<i32> {
+        let python = self.get_python_path()?;
+        if !python.exists() {
+            return Err(anyhow::anyhow!(
+                "Snakepit environment not found. Run 'snakepit env init' or 'snakepit install <package>' first."
+            ));
+        }
+
+        let bin_dir = if cfg!(target_os = "windows") {
+            self.path.join("Scripts")
+        } else {
+            self.path.join("bin")
+        };
+
+        // Prepend the env's bin/ to PATH
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{}:{}", bin_dir.display(), current_path);
+
+        let site_packages = self.get_site_packages()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        // Determine if the command is "python" or "python3" — use the env's Python
+        let actual_command = if command == "python" || command == "python3" {
+            python.to_string_lossy().to_string()
+        } else {
+            command.to_string()
+        };
+
+        let status = Command::new(&actual_command)
+            .args(args)
+            .env("PATH", &new_path)
+            .env("VIRTUAL_ENV", &self.path)
+            .env("PYTHONPATH", &site_packages)
+            .status()
+            .context(format!("Failed to run '{}' in snakepit environment", command))?;
+
+        Ok(status.code().unwrap_or(1))
+    }
+}
+
 pub struct VenvSandbox {
     id: String,
     path: PathBuf,
