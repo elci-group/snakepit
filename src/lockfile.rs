@@ -1,9 +1,9 @@
+use crate::pep440::Version;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs;
-use crate::pep440::Version;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Lockfile {
@@ -34,6 +34,12 @@ pub enum PackageSource {
     PyPI { url: String },
     Git { url: String, rev: String },
     Path { path: String },
+}
+
+impl Default for Lockfile {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Lockfile {
@@ -77,12 +83,16 @@ impl Lockfile {
         }
         true
     }
-
-
 }
 
 pub struct LockfileGenerator {
     resolver: crate::resolver::DependencyResolver,
+}
+
+impl Default for LockfileGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LockfileGenerator {
@@ -113,7 +123,7 @@ impl LockfileGenerator {
     ) -> Result<LockedPackage> {
         // Fetch package info to get hashes
         let info = self.resolver.fetch_package_info(name).await?;
-        
+
         let version_str = version.to_string();
         let mut hashes = Vec::new();
         let mut dependencies = Vec::new();

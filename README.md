@@ -129,6 +129,8 @@ snakepit init my-awesome-project
 
 ## 🌟 Revolutionary Features (Optional)
 
+> **Status:** The SnakeEgg commands (`nest`, `egg`, `clutch`, `protein`) and the AI `recommend` command are **not part of the current CLI**. They were removed while the project narrows its focus to the core package-management workflow. The full design is preserved in `report_chapters/COMPLETE_REPORT.md` and may return in a future release. `snakepit fix` keeps working without an AI backend by detecting `ModuleNotFoundError` directly.
+
 Beyond traditional package management, Snakepit offers **SnakeEgg**: an AI-powered organic code evolution system. These features are completely optional and activate when you want to go beyond conventional development.
 
 ### 1. 🥚 **Dual Egg System**: Cross-Language Evolution
@@ -257,6 +259,8 @@ snakepit sync
 
 ### Organic Code Evolution (Optional)
 
+> **Not available in the current CLI** — see the status note under "Revolutionary Features" above.
+
 ```bash
 # Initialize quantum nest
 snakepit nest init
@@ -304,8 +308,8 @@ snakepit egg status web_api
 |---------|----------|--------|
 | Resolution Algorithm | PubGrub | PubGrub |
 | Speed | Faster (Rust) | Slower (Python) |
-| AI Features | ✅ SnakeEgg | ❌ None |
-| Cross-language | ✅ Dual Eggs | ❌ Python only |
+| AI Features | ❌ Removed (see note above) | ❌ None |
+| Cross-language | ❌ Removed (see note above) | ❌ Python only |
 
 ---
 
@@ -323,21 +327,15 @@ snakepit egg status web_api
 - **`src/config.rs`** - Configuration system
 - **`src/lockfile.rs`** - Deterministic builds
 
-### SnakeEgg (Organic Evolution)
+### Platform Utilities
 
-- **`src/snake_egg/dna.rs`** - DNA specifications
-- **`src/snake_egg/protein.rs`** - Reusable patterns
-- **`src/snake_egg/nest.rs`** - Filesystem organization
-- **`src/snake_egg/mother.rs`** - AI orchestrator
-- **`src/snake_egg/clutch.rs`** - Heat sharing
-- **`src/snake_egg/chrono_capacitus.rs`** - Resource allocation
-- **`src/snake_egg/schrodingers_shell.rs`** - Quantum storage
+- **`src/snakegg.rs`** - In-tree platform shim (styling, directories, hashing, progress, IDs) replacing the former external `snakegg` crate; backed by `dirs`, `indicatif`, `sha2`, `md5`, and `chrono`
 
 ### AI Integration
 
-- **`src/charmer.rs`** - SnakeCharmer model pool
 - **`src/hallucinatory_fangs.rs`** - Confidence scoring
-- **`src/resolver_ai.rs`** - AI-enhanced recommendations
+
+> The SnakeEgg organic-evolution modules (`snake_egg/*`, `charmer.rs`, `resolver_ai.rs`) were removed together with the `nest`/`egg`/`clutch`/`protein`/`recommend` commands — see the status note under [Revolutionary Features](#-revolutionary-features-optional).
 
 ---
 

@@ -1,11 +1,12 @@
-use anyhow::Result;
-use serde::{Serialize, Deserialize};
-use std::path::PathBuf;
-use snakegg::native::style::{green, blue, magenta, dim};
-use snakegg::native::dirs;
-use snakegg::native::datetime::DateTime;
-use snakegg::charmer::SnakeCharmer;
+use crate::installer::validate_package_name;
 use crate::installer::PackageInstaller;
+use crate::snakegg;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use snakegg::native::datetime::DateTime;
+use snakegg::native::dirs;
+use snakegg::native::style::{blue, dim, green};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImpactReport {
@@ -27,7 +28,6 @@ pub struct Snapshot {
 
 pub struct Uninstaller {
     installer: PackageInstaller,
-    charmer: Option<SnakeCharmer>,
     snapshots_dir: PathBuf,
 }
 
@@ -42,18 +42,20 @@ impl Uninstaller {
 
         Ok(Self {
             installer: PackageInstaller::new(),
-            charmer: SnakeCharmer::new().ok(),
             snapshots_dir,
         })
     }
 
     pub async fn analyze_impact(&self, package: &str) -> Result<ImpactReport> {
-        println!("{}", dim(format!("🔍 Analyzing impact of removing '{}'...", package)));
+        println!(
+            "{}",
+            dim(format!("🔍 Analyzing impact of removing '{}'...", package))
+        );
 
         // 1. Find dependents (packages that depend on this one)
         let dependents = self.find_dependents(package).await?;
-        
-        let mut report = ImpactReport {
+
+        let report = ImpactReport {
             package: package.to_string(),
             dependents: dependents.clone(),
             risk_score: if dependents.is_empty() { 10 } else { 80 },
@@ -61,23 +63,15 @@ impl Uninstaller {
             breaking_changes: !dependents.is_empty(),
         };
 
-        // 2. AI Analysis
-        if let Some(charmer) = &self.charmer {
-            println!("{}", magenta("🧠 Consulting Snake Charmer for risk prediction..."));
-            if let Ok(analysis) = charmer.analyze_uninstall_risk(package, &dependents).await {
-                report.ai_analysis = Some(analysis);
-            }
-        }
-
         Ok(report)
     }
 
     async fn find_dependents(&self, package: &str) -> Result<Vec<String>> {
+        validate_package_name(package)?;
         // Use Python's importlib.metadata to find reverse dependencies
         // This is robust and works across venvs
-        let script = format!(
-            "import importlib.metadata; \
-            package = '{}'; \
+        let script = "import importlib.metadata; \
+            package = __import__('sys').argv[1]; \
             dependents = []; \
             for dist in importlib.metadata.distributions(): \
                 try: \
@@ -85,13 +79,12 @@ impl Uninstaller {
                     if any(package == r.split(' ')[0] for r in requires): \
                         dependents.append(dist.metadata['Name']); \
                 except: pass; \
-            print(','.join(dependents))",
-            package
-        );
+            print(','.join(dependents))";
 
         let output = std::process::Command::new("python3")
             .arg("-c")
             .arg(script)
+            .arg(package)
             .output()?;
 
         if !output.status.success() {
@@ -99,7 +92,8 @@ impl Uninstaller {
         }
 
         let output_str = String::from_utf8_lossy(&output.stdout);
-        let deps: Vec<String> = output_str.trim()
+        let deps: Vec<String> = output_str
+            .trim()
             .split(',')
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
@@ -109,24 +103,26 @@ impl Uninstaller {
     }
 
     pub async fn create_snapshot(&self, package: &str) -> Result<Snapshot> {
-        println!("{}", blue(format!("📸 Creating snapshot of '{}'...", package)));
-        
+        validate_package_name(package)?;
+        println!(
+            "{}",
+            blue(format!("📸 Creating snapshot of '{}'...", package))
+        );
+
         // 1. Find package location
-        let script = format!(
-            "import importlib.metadata; \
+        let script = "import importlib.metadata; \
             try: \
-                files = importlib.metadata.files('{}'); \
+                files = importlib.metadata.files(__import__('sys').argv[1]); \
                 if files: \
                     print(files[0].locate().parent); \
-            except: pass",
-            package
-        );
+            except: pass";
 
         let output = std::process::Command::new("python3")
             .arg("-c")
             .arg(script)
+            .arg(package)
             .output()?;
-            
+
         let location = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if location.is_empty() {
             return Err(anyhow::anyhow!("Could not locate package '{}'", package));
@@ -137,16 +133,16 @@ impl Uninstaller {
         let id = snakegg::native::id::new();
         let timestamp = DateTime::now().to_string();
         let snapshot_path = self.snapshots_dir.join(format!("{}_{}.zip", package, id));
-        
+
         let file = std::fs::File::create(&snapshot_path)?;
         let mut zip = zip::ZipWriter::new(file);
-        let options = zip::write::FileOptions::default()
+        let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated);
 
         // Recursively add files
         let prefix = package_path.parent().unwrap_or(&package_path);
         let mut buffer = Vec::new();
-        
+
         // Simple recursive walker
         let mut stack = vec![package_path.clone()];
         while let Some(dir) = stack.pop() {
@@ -171,19 +167,22 @@ impl Uninstaller {
             }
         }
         zip.finish()?;
-        
+
         Ok(Snapshot {
             id,
             timestamp,
             package: package.to_string(),
-            version: "unknown".to_string(), 
+            version: "unknown".to_string(),
             files_path: snapshot_path,
         })
     }
 
     pub async fn restore_snapshot(&self, snapshot_id: &str) -> Result<()> {
-        println!("{}", green(format!("⏪ Restoring snapshot '{}'...", snapshot_id)));
-        
+        println!(
+            "{}",
+            green(format!("⏪ Restoring snapshot '{}'...", snapshot_id))
+        );
+
         // Find the snapshot file
         let mut snapshot_path = None;
         if let Ok(entries) = std::fs::read_dir(&self.snapshots_dir) {
@@ -198,8 +197,9 @@ impl Uninstaller {
             }
         }
 
-        let snapshot_path = snapshot_path.ok_or_else(|| anyhow::anyhow!("Snapshot '{}' not found", snapshot_id))?;
-        
+        let snapshot_path =
+            snapshot_path.ok_or_else(|| anyhow::anyhow!("Snapshot '{}' not found", snapshot_id))?;
+
         // Determine restore location (site-packages)
         // We assume the zip structure preserves the relative path from site-packages
         // But we need to find site-packages first.
@@ -210,7 +210,7 @@ impl Uninstaller {
             .output()?;
         let site_packages = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if site_packages.is_empty() {
-             return Err(anyhow::anyhow!("Could not locate site-packages"));
+            return Err(anyhow::anyhow!("Could not locate site-packages"));
         }
         let target_dir = PathBuf::from(site_packages);
 
@@ -247,14 +247,14 @@ impl Uninstaller {
         if let Ok(entries) = std::fs::read_dir(&self.snapshots_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map_or(false, |ext| ext == "zip") {
+                if path.extension().is_some_and(|ext| ext == "zip") {
                     let name = path.file_stem().unwrap().to_string_lossy();
                     // name format: package_id
                     let parts: Vec<&str> = name.split('_').collect();
                     if parts.len() >= 2 {
-                        let package = parts[0..parts.len()-1].join("_");
+                        let package = parts[0..parts.len() - 1].join("_");
                         let id = parts.last().unwrap().to_string();
-                        
+
                         snapshots.push(Snapshot {
                             id,
                             timestamp: "unknown".to_string(), // Metadata not stored in filename

@@ -1,4 +1,6 @@
+use crate::snakegg;
 use anyhow::Result;
+use snakegg::native::datetime::DateTime;
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
 use std::sync::Arc;
@@ -7,7 +9,6 @@ use sysinfo::{Pid, System};
 use tokio::fs;
 use tokio::sync::RwLock;
 use tokio::time::sleep;
-use snakegg::native::datetime::DateTime;
 
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
@@ -34,6 +35,12 @@ pub struct ProcessMonitor {
     python_processes: Arc<RwLock<HashMap<Pid, ProcessInfo>>>,
 }
 
+impl Default for ProcessMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProcessMonitor {
     pub fn new() -> Self {
         Self {
@@ -44,12 +51,12 @@ impl ProcessMonitor {
 
     pub async fn start_monitoring(&self, check_interval: Duration) -> Result<()> {
         println!("🔍 Starting process monitoring...");
-        
+
         loop {
             if let Err(e) = self.scan_processes().await {
                 eprintln!("Error scanning processes: {}", e);
             }
-            
+
             sleep(check_interval).await;
         }
     }
@@ -82,8 +89,11 @@ impl ProcessMonitor {
             if let Some(process) = system.process(*pid) {
                 if let Some(missing_module) = self.check_process_for_errors(*pid, process).await? {
                     process_info.error_count += 1;
-                    println!("🚨 Detected missing module: {} in process {}", missing_module, pid);
-                    
+                    println!(
+                        "🚨 Detected missing module: {} in process {}",
+                        missing_module, pid
+                    );
+
                     // Here you would trigger the auto-installation
                     self.handle_missing_module(missing_module, *pid).await?;
                 }
@@ -96,16 +106,20 @@ impl ProcessMonitor {
     fn is_python_process(&self, process: &sysinfo::Process) -> bool {
         let name = process.name().to_lowercase();
         let cmd = process.cmd().join(" ");
-        
-        name.contains("python") || 
-        name.contains("python3") || 
-        name.contains("python2") ||
-        cmd.contains("python") ||
-        cmd.contains("python3") ||
-        cmd.contains("python2")
+
+        name.contains("python")
+            || name.contains("python3")
+            || name.contains("python2")
+            || cmd.contains("python")
+            || cmd.contains("python3")
+            || cmd.contains("python2")
     }
 
-    async fn check_process_for_errors(&self, pid: Pid, process: &sysinfo::Process) -> Result<Option<String>> {
+    async fn check_process_for_errors(
+        &self,
+        pid: Pid,
+        process: &sysinfo::Process,
+    ) -> Result<Option<String>> {
         // Method 1: Check stderr output (if available)
         if let Some(missing_module) = self.check_stderr_output(pid).await? {
             return Ok(Some(missing_module));
@@ -127,17 +141,21 @@ impl ProcessMonitor {
     async fn check_stderr_output(&self, _pid: Pid) -> Result<Option<String>> {
         // This is a simplified approach - in reality, you'd need to hook into the process
         // or use more sophisticated monitoring techniques
-        
+
         // For demonstration, we'll simulate checking stderr
         // In a real implementation, you might use:
         // - ptrace to hook into the process
         // - LD_PRELOAD to intercept library calls
         // - strace to monitor system calls
-        
+
         Ok(None)
     }
 
-    async fn check_process_status(&self, _pid: Pid, process: &sysinfo::Process) -> Result<Option<String>> {
+    async fn check_process_status(
+        &self,
+        _pid: Pid,
+        process: &sysinfo::Process,
+    ) -> Result<Option<String>> {
         // Check if process is in a problematic state
         if process.status() == sysinfo::ProcessStatus::Zombie {
             return Ok(None);
@@ -158,14 +176,17 @@ impl ProcessMonitor {
         // Monitor file system activity for Python import attempts
         // This would involve monitoring /usr/lib/python*/site-packages/
         // and other Python paths for failed import attempts
-        
+
         // For now, this is a placeholder
         Ok(None)
     }
 
     async fn handle_missing_module(&self, module_name: String, pid: Pid) -> Result<()> {
-        println!("🔧 Handling missing module: {} for process {}", module_name, pid);
-        
+        println!(
+            "🔧 Handling missing module: {} for process {}",
+            module_name, pid
+        );
+
         // Create error record
         let error = ModuleError {
             module_name: module_name.clone(),
@@ -180,22 +201,32 @@ impl ProcessMonitor {
 
         // Trigger auto-installation (this would be handled by the daemon)
         println!("📦 Auto-installing module: {}", module_name);
-        
+
         Ok(())
     }
 
     async fn log_module_error(&self, error: &ModuleError) -> Result<()> {
         let log_entry = format!(
             "[{}] PID: {} - Missing module: {} - Error: {}\n",
-            DateTime::now().to_string(),
+            DateTime::now(),
             error.process_pid,
             error.module_name,
             error.error_message
         );
 
-        // Write to log file
-        let log_path = "/tmp/snakepit-errors.log";
-        fs::write(log_path, log_entry).await?;
+        // Keep logs in the user's private cache directory, not a shared /tmp path.
+        let log_dir = snakegg::native::dirs::cache_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not find cache directory"))?
+            .join("snakepit");
+        fs::create_dir_all(&log_dir).await?;
+        let log_path = log_dir.join("errors.log");
+        use tokio::io::AsyncWriteExt;
+        let mut log_file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path)
+            .await?;
+        log_file.write_all(log_entry.as_bytes()).await?;
 
         Ok(())
     }
@@ -231,6 +262,12 @@ pub struct StraceMonitor {
     active_traces: Arc<RwLock<HashMap<Pid, std::process::Child>>>,
 }
 
+impl Default for StraceMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StraceMonitor {
     pub fn new() -> Self {
         Self {
@@ -248,7 +285,7 @@ impl StraceMonitor {
         cmd.stderr(Stdio::piped());
 
         let child = cmd.spawn()?;
-        
+
         {
             let mut active_traces = self.active_traces.write().await;
             active_traces.insert(pid, child);
@@ -279,8 +316,6 @@ impl StraceMonitor {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-
 
     #[tokio::test]
     async fn test_process_monitor_creation() {

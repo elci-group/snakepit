@@ -1,10 +1,11 @@
+use crate::daemon::{DaemonConfig, ModuleError};
+use crate::snakegg;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use tokio::fs;
-use crate::daemon::{ModuleError, DaemonConfig};
 use snakegg::native::dirs;
 use snakegg::native::style::{dim, green};
+use std::path::PathBuf;
+use tokio::fs;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SnakeskinState {
@@ -25,7 +26,7 @@ impl Snakeskin {
         let data_dir = dirs::data_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find data directory"))?
             .join("snakepit");
-            
+
         if !data_dir.exists() {
             std::fs::create_dir_all(&data_dir)?;
         }

@@ -62,14 +62,6 @@ pub enum Commands {
         #[arg(last = true)]
         command: Vec<String>,
     },
-    /// 🧠 Get AI-powered package recommendations
-    Recommend {
-        /// What you want to do (e.g., "web scraping", "data visualization")
-        query: String,
-        /// Project context for better recommendations
-        #[arg(short, long)]
-        context: Option<String>,
-    },
     /// 🦷 Hallucinatory Fangs — modify module behavior safely
     Fangs {
         #[command(subcommand)]
@@ -91,26 +83,6 @@ pub enum Commands {
         #[arg(short, long, default_value = "8080")]
         port: u16,
     },
-    /// 🪺 Quantum Nest Management (SnakeEgg)
-    Nest {
-        #[command(subcommand)]
-        command: NestCommands,
-    },
-    /// 🥚 Organic Egg Management (SnakeEgg)
-    Egg {
-        #[command(subcommand)]
-        command: EggCommands,
-    },
-    /// 🧬 Clutch Management (SnakeEgg)
-    Clutch {
-        #[command(subcommand)]
-        command: ClutchCommands,
-    },
-    /// 🧪 Protein Management (SnakeEgg)
-    Protein {
-        #[command(subcommand)]
-        command: ProteinCommands,
-    },
     /// ▶️  Run a command in the snakepit Python environment
     Run {
         /// The command and arguments to run (use -- to separate args)
@@ -121,94 +93,6 @@ pub enum Commands {
     Env {
         #[command(subcommand)]
         command: EnvCommands,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum NestCommands {
-    /// 🏗️  Initialize a new quantum nest
-    Init,
-    /// 📊 Show nest status
-    Status,
-    /// 🧹 Vacuum idle eggs to git ether
-    Vacuum {
-        /// Maximum idle time (e.g., "24h", "7d")
-        #[arg(short, long, default_value = "24h")]
-        max_idle: String,
-    },
-    /// 💾 Checkpoint all eggs to git
-    Checkpoint,
-    /// 👁️  Observe an egg (materialize from ether)
-    Observe {
-        /// Egg name
-        name: String,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum EggCommands {
-    /// 🥚 Create a new egg
-    Create {
-        /// Egg name
-        name: String,
-        /// Species (Service, Worker, etc.)
-        #[arg(short, long, default_value = "Service")]
-        species: String,
-        /// Type (organic, metallic, dual)
-        #[arg(short, long, default_value = "dual")]
-        r#type: String,
-    },
-    /// 🧬 Evolve an egg
-    Evolve {
-        /// Egg name
-        name: String,
-        /// Watch mode (continuous evolution)
-        #[arg(short, long)]
-        watch: bool,
-    },
-    /// 📊 Show egg status
-    Status {
-        /// Egg name
-        name: String,
-    },
-    /// 📋 List all eggs
-    List,
-}
-
-#[derive(Subcommand)]
-pub enum ClutchCommands {
-    /// ✨ Create a new clutch
-    Create {
-        /// Clutch name
-        name: String,
-    },
-    /// ➕ Add eggs to a clutch
-    Add {
-        /// Clutch name
-        name: String,
-        /// Egg names
-        eggs: Vec<String>,
-    },
-    /// 🔥 Trigger thermal cycle (heat sharing)
-    ThermalCycle {
-        /// Clutch name
-        name: String,
-    },
-    /// 📊 Show clutch status
-    Status {
-        /// Clutch name
-        name: String,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum ProteinCommands {
-    /// 📋 List available proteins
-    List,
-    /// 🧫 Extract proteins from an egg
-    Extract {
-        /// Egg name
-        egg: String,
     },
 }
 

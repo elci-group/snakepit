@@ -1,7 +1,9 @@
-use anyhow::{Result, Context};
+use crate::installer::validate_package_name;
+use crate::snakegg;
+use crate::venv::VirtualEnvironmentManager;
+use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use crate::venv::VirtualEnvironmentManager;
 
 /// The persistent snakepit environment where packages live after approval.
 /// This is the environment that `snakepit run` uses to execute user scripts.
@@ -14,8 +16,7 @@ impl SnakepitEnv {
     /// Get the persistent environment (at ~/.snakepit/env/)
     pub fn new() -> Self {
         let base_path = Self::get_env_base();
-        let manager = VirtualEnvironmentManager::new()
-            .with_base_path(base_path.clone());
+        let manager = VirtualEnvironmentManager::new().with_base_path(base_path.clone());
         Self {
             path: base_path.join("default"),
             manager,
@@ -95,6 +96,7 @@ impl SnakepitEnv {
 
     /// Install a package into the persistent environment
     pub async fn install_package(&self, package: &str, version: Option<&str>) -> Result<()> {
+        validate_package_name(package)?;
         self.ensure_exists().await?;
         let pip_path = self.get_pip_path()?;
 
@@ -111,14 +113,21 @@ impl SnakepitEnv {
 
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to install package in snakepit env: {}", error));
+            return Err(anyhow::anyhow!(
+                "Failed to install package in snakepit env: {}",
+                error
+            ));
         }
 
         Ok(())
     }
 
     /// Run a script using the persistent environment's Python
-    pub fn run_script(&self, script_path: &Path, args: &[String]) -> Result<(bool, String, String)> {
+    pub fn run_script(
+        &self,
+        script_path: &Path,
+        args: &[String],
+    ) -> Result<(bool, String, String)> {
         let python = self.get_python_path()?;
         if !python.exists() {
             return Err(anyhow::anyhow!(
@@ -157,7 +166,8 @@ impl SnakepitEnv {
         let current_path = std::env::var("PATH").unwrap_or_default();
         let new_path = format!("{}:{}", bin_dir.display(), current_path);
 
-        let site_packages = self.get_site_packages()
+        let site_packages = self
+            .get_site_packages()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
@@ -174,7 +184,10 @@ impl SnakepitEnv {
             .env("VIRTUAL_ENV", &self.path)
             .env("PYTHONPATH", &site_packages)
             .status()
-            .context(format!("Failed to run '{}' in snakepit environment", command))?;
+            .context(format!(
+                "Failed to run '{}' in snakepit environment",
+                command
+            ))?;
 
         Ok(status.code().unwrap_or(1))
     }
@@ -192,10 +205,10 @@ impl VenvSandbox {
         // Use a temporary directory for sandboxes
         let sandbox_dir = std::env::temp_dir().join("snakepit-sandbox");
         let path = sandbox_dir.join(id);
-        
+
         // Configure manager to use the sandbox directory
         let manager = manager.with_base_path(sandbox_dir);
-        
+
         Self {
             id: id.to_string(),
             path,
@@ -210,6 +223,7 @@ impl VenvSandbox {
     }
 
     pub async fn install_package(&self, package: &str, version: Option<&str>) -> Result<()> {
+        validate_package_name(package)?;
         let python_path = self.manager.activate_venv(&self.id).await?;
         let pip_path = if cfg!(target_os = "windows") {
             python_path.parent().unwrap().join("pip.exe")
@@ -219,7 +233,7 @@ impl VenvSandbox {
 
         let mut cmd = Command::new(pip_path);
         cmd.arg("install");
-        
+
         if let Some(ver) = version {
             cmd.arg(format!("{}=={}", package, ver));
         } else {
@@ -227,10 +241,13 @@ impl VenvSandbox {
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to install package in sandbox: {}", error));
+            return Err(anyhow::anyhow!(
+                "Failed to install package in sandbox: {}",
+                error
+            ));
         }
 
         Ok(())
@@ -238,7 +255,7 @@ impl VenvSandbox {
 
     pub async fn run_script(&self, script_path: &Path) -> Result<(bool, String, String)> {
         let python_path = self.manager.activate_venv(&self.id).await?;
-        
+
         let output = Command::new(python_path)
             .arg(script_path)
             .output()
@@ -255,7 +272,7 @@ impl VenvSandbox {
         // We use the python executable to run commands, assuming modules or scripts
         // But if we want to run the package binary itself, we might need to look in bin/
         // For now, let's assume we run via python -m or just execute python with args
-        
+
         let output = Command::new(python_path)
             .args(args)
             .output()
@@ -275,7 +292,7 @@ impl VenvSandbox {
     pub async fn find_installed_module(&self, package_name: &str) -> Result<String> {
         let path = self.manager.get_venv_path(&self.id);
         let site_packages = self.manager.get_site_packages_path(&path)?;
-        
+
         if !site_packages.exists() {
             return Ok(package_name.replace("-", "_"));
         }
@@ -288,17 +305,20 @@ impl VenvSandbox {
             let path = entry.path();
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 // Skip metadata directories
-                if name.ends_with(".dist-info") || name.ends_with(".egg-info") || name == "__pycache__" {
+                if name.ends_with(".dist-info")
+                    || name.ends_with(".egg-info")
+                    || name == "__pycache__"
+                {
                     continue;
                 }
-                
+
                 let name_lower = name.to_lowercase();
-                
+
                 // Exact match (ignoring case)
                 if name_lower == normalized_name {
                     return Ok(name.trim_end_matches(".py").to_string());
                 }
-                
+
                 // Heuristic: if the package name contains the module name
                 if normalized_name.contains(&name_lower) || name_lower.contains(&normalized_name) {
                     best_match = Some(name.trim_end_matches(".py").to_string());

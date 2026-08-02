@@ -12,10 +12,16 @@ pub struct SystemLibDetector {
     library_map: HashMap<String, HashMap<String, String>>,
 }
 
+impl Default for SystemLibDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SystemLibDetector {
     pub fn new() -> Self {
         let mut library_map = HashMap::new();
-        
+
         // PostgreSQL
         let mut libpq = HashMap::new();
         libpq.insert("ubuntu".to_string(), "libpq-dev".to_string());
@@ -25,7 +31,7 @@ impl SystemLibDetector {
         libpq.insert("macos".to_string(), "postgresql".to_string());
         library_map.insert("libpq.so".to_string(), libpq.clone());
         library_map.insert("libpq.so.5".to_string(), libpq);
-        
+
         // OpenSSL
         let mut libssl = HashMap::new();
         libssl.insert("ubuntu".to_string(), "libssl-dev".to_string());
@@ -36,7 +42,7 @@ impl SystemLibDetector {
         library_map.insert("libssl.so".to_string(), libssl.clone());
         library_map.insert("libssl.so.1.1".to_string(), libssl.clone());
         library_map.insert("libssl.so.3".to_string(), libssl);
-        
+
         // MySQL
         let mut libmysql = HashMap::new();
         libmysql.insert("ubuntu".to_string(), "libmysqlclient-dev".to_string());
@@ -45,7 +51,7 @@ impl SystemLibDetector {
         libmysql.insert("arch".to_string(), "mariadb-libs".to_string());
         libmysql.insert("macos".to_string(), "mysql".to_string());
         library_map.insert("libmysqlclient.so".to_string(), libmysql);
-        
+
         // SQLite
         let mut libsqlite = HashMap::new();
         libsqlite.insert("ubuntu".to_string(), "libsqlite3-dev".to_string());
@@ -54,7 +60,7 @@ impl SystemLibDetector {
         libsqlite.insert("arch".to_string(), "sqlite".to_string());
         libsqlite.insert("macos".to_string(), "sqlite".to_string());
         library_map.insert("libsqlite3.so".to_string(), libsqlite);
-        
+
         Self { library_map }
     }
 
@@ -62,7 +68,7 @@ impl SystemLibDetector {
         if cfg!(target_os = "macos") {
             return "macos".to_string();
         }
-        
+
         if let Ok(content) = std::fs::read_to_string("/etc/os-release") {
             for line in content.lines() {
                 if line.starts_with("ID=") {
@@ -71,13 +77,13 @@ impl SystemLibDetector {
                 }
             }
         }
-        
+
         "unknown".to_string()
     }
 
     pub fn find_package(&self, library: &str) -> Option<SystemLibrary> {
         let os = self.detect_os();
-        
+
         // Try exact match first
         if let Some(packages) = self.library_map.get(library) {
             if let Some(package_name) = packages.get(&os) {
@@ -88,7 +94,7 @@ impl SystemLibDetector {
                 });
             }
         }
-        
+
         // Try without version suffix (e.g., libpq.so.5 -> libpq.so)
         let base_name = library.split('.').take(2).collect::<Vec<_>>().join(".");
         if let Some(packages) = self.library_map.get(&base_name) {
@@ -100,7 +106,7 @@ impl SystemLibDetector {
                 });
             }
         }
-        
+
         None
     }
 
@@ -119,9 +125,11 @@ impl SystemLibDetector {
         // "libpq.so.5: cannot open shared object file"
         // "ImportError: libssl.so.1.1: cannot open shared object file"
         // "OSError: libmysqlclient.so: cannot open shared object file"
-        
+
         for line in error.lines() {
-            if line.contains("cannot open shared object file") || line.contains("No such file or directory") {
+            if line.contains("cannot open shared object file")
+                || line.contains("No such file or directory")
+            {
                 // Extract library name
                 for word in line.split_whitespace() {
                     if word.starts_with("lib") && (word.ends_with(".so") || word.contains(".so.")) {
@@ -131,7 +139,7 @@ impl SystemLibDetector {
                 }
             }
         }
-        
+
         None
     }
 }
@@ -143,8 +151,12 @@ mod tests {
     #[test]
     fn test_extract_library() {
         let detector = SystemLibDetector::new();
-        let error = "ImportError: libpq.so.5: cannot open shared object file: No such file or directory";
-        assert_eq!(detector.extract_library_from_error(error), Some("libpq.so.5".to_string()));
+        let error =
+            "ImportError: libpq.so.5: cannot open shared object file: No such file or directory";
+        assert_eq!(
+            detector.extract_library_from_error(error),
+            Some("libpq.so.5".to_string())
+        );
     }
 
     #[test]

@@ -1,7 +1,8 @@
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use crate::snakegg;
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use snakegg::native::dirs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnakepitConfig {
@@ -39,7 +40,7 @@ impl SnakepitConfig {
 
     pub fn load() -> Result<Self> {
         let config_path = Self::get_config_path()?;
-        
+
         if config_path.exists() {
             let content = std::fs::read_to_string(&config_path)?;
             let config: SnakepitConfig = toml::from_str(&content)?;
@@ -51,15 +52,15 @@ impl SnakepitConfig {
 
     pub fn save(&self) -> Result<()> {
         let config_path = Self::get_config_path()?;
-        
+
         // Create config directory if it doesn't exist
         if let Some(parent) = config_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         let content = toml::to_string_pretty(self)?;
         std::fs::write(&config_path, content)?;
-        
+
         Ok(())
     }
 
@@ -242,10 +243,9 @@ mod tests {
             .with_backend("conda")
             .with_python_version("3.9")
             .with_cache(false);
-        
+
         assert_eq!(config.default_backend, Some("conda".to_string()));
         assert_eq!(config.python_version, Some("3.9".to_string()));
         assert_eq!(config.cache_enabled, Some(false));
     }
 }
-

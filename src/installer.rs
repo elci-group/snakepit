@@ -1,9 +1,47 @@
 use crate::resolver::ResolvedDependency;
+use crate::snakegg;
 use anyhow::Result;
-use std::process::{Command, Stdio};
-use snakegg::native::progress::ProgressBar;
-use snakegg::native::style::{red, green, yellow, cyan, dim};
 use serde_json;
+use snakegg::native::progress::ProgressBar;
+use snakegg::native::style::{cyan, dim, green, red, yellow};
+use std::process::{Command, Stdio};
+
+const MAX_DOWNLOAD_BYTES: usize = 256 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES: usize = 10_000;
+const MAX_ARCHIVE_UNCOMPRESSED_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_ARCHIVE_FILE_BYTES: u64 = 128 * 1024 * 1024;
+
+/// Validate a Python distribution name before it is used in a filesystem path
+/// or passed to a package-manager command.
+pub fn validate_package_name(package: &str) -> Result<()> {
+    let valid = !package.is_empty()
+        && package.len() <= 214
+        && !package.starts_with('-')
+        && package
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'));
+    if valid {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Invalid package name. Use a PyPI distribution name containing only letters, digits, '.', '_' or '-'."
+        ))
+    }
+}
+
+fn validate_version(version: &str) -> Result<()> {
+    if !version.is_empty()
+        && version.len() <= 128
+        && version
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() || byte == b' ')
+        && !version.starts_with('-')
+    {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Invalid package version"))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct PackageInfo {
@@ -63,6 +101,12 @@ pub struct PackageInstaller {
     use_cache: bool,
 }
 
+impl Default for PackageInstaller {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PackageInstaller {
     pub fn new() -> Self {
         Self {
@@ -88,7 +132,11 @@ impl PackageInstaller {
     }
 
     pub async fn install_package(&self, package: &str, version: Option<&str>) -> Result<()> {
-        let mut pb = ProgressBar::new_spinner();
+        validate_package_name(package)?;
+        if let Some(version) = version {
+            validate_version(version)?;
+        }
+        let pb = ProgressBar::new_spinner();
         pb.set_message(format!("Installing {}...", package));
 
         let result = match self.backend {
@@ -99,8 +147,9 @@ impl PackageInstaller {
             InstallerBackend::Poetry => self.install_with_poetry(package, version).await,
         };
 
-        pb.finish_with_message(&format!("{} {}", 
-            green("✓"), 
+        pb.finish_with_message(format!(
+            "{} {}",
+            green("✓"),
             green(format!("Installed {}", package))
         ));
 
@@ -112,22 +161,27 @@ impl PackageInstaller {
             return Ok(());
         }
 
-        println!("{}", cyan(format!("🚀 Installing {} packages in parallel...", dependencies.len())));
+        println!(
+            "{}",
+            cyan(format!(
+                "🚀 Installing {} packages in parallel...",
+                dependencies.len()
+            ))
+        );
 
-        let mut pb = ProgressBar::new(dependencies.len() as u64);
+        let pb = ProgressBar::new(dependencies.len() as u64);
         // Native progress bar has default styling
-
 
         // Spawn parallel install tasks
         let mut handles = vec![];
-        
+
         for dep in dependencies {
             let package = dep.name.clone();
             let version = dep.version.clone();
             let backend = self.backend.clone();
             let venv_path = self.venv_path.clone();
             let use_cache = self.use_cache;
-            
+
             let handle = tokio::spawn(async move {
                 let installer = PackageInstaller {
                     backend,
@@ -136,7 +190,7 @@ impl PackageInstaller {
                 };
                 installer.install_package(&package, Some(&version)).await
             });
-            
+
             handles.push((dep.name.clone(), handle));
         }
 
@@ -164,7 +218,7 @@ impl PackageInstaller {
         } else {
             yellow(format!("Completed with {} errors", errors.len())).to_string()
         };
-        pb.finish_with_message(&msg);
+        pb.finish_with_message(msg);
 
         if !errors.is_empty() {
             eprintln!("{}", red("Errors:"));
@@ -178,7 +232,8 @@ impl PackageInstaller {
     }
 
     pub async fn uninstall_package(&self, package: &str) -> Result<()> {
-        let mut pb = ProgressBar::new_spinner();
+        validate_package_name(package)?;
+        let pb = ProgressBar::new_spinner();
         pb.set_message(format!("Uninstalling {}...", package));
 
         let result = match self.backend {
@@ -189,8 +244,9 @@ impl PackageInstaller {
             InstallerBackend::Poetry => self.uninstall_with_poetry(package).await,
         };
 
-        pb.finish_with_message(&format!("{} {}", 
-            red("✓"), 
+        pb.finish_with_message(format!(
+            "{} {}",
+            red("✓"),
             red(format!("Uninstalled {}", package))
         ));
 
@@ -236,11 +292,14 @@ impl PackageInstaller {
         } else {
             // Fallback to basic list
             let basic = self.list_installed_packages().await?;
-            basic.into_iter().map(|name| PackageInfo {
-                name,
-                version: String::from("?"),
-                size_bytes: 0,
-            }).collect()
+            basic
+                .into_iter()
+                .map(|name| PackageInfo {
+                    name,
+                    version: String::from("?"),
+                    size_bytes: 0,
+                })
+                .collect()
         };
 
         // Measure sizes from site-packages
@@ -250,7 +309,7 @@ impl PackageInstaller {
             }
         }
 
-        packages.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        packages.sort_by_key(|a| a.name.to_lowercase());
         Ok(packages)
     }
 
@@ -293,7 +352,11 @@ impl PackageInstaller {
 
         if let Ok(entries) = std::fs::read_dir(site_packages) {
             for entry in entries.flatten() {
-                let fname = entry.file_name().to_string_lossy().to_lowercase().replace('-', "_");
+                let fname = entry
+                    .file_name()
+                    .to_string_lossy()
+                    .to_lowercase()
+                    .replace('-', "_");
                 // Match package directories and .dist-info dirs
                 if fname.starts_with(&normalized) {
                     total += dir_size(&entry.path());
@@ -307,15 +370,20 @@ impl PackageInstaller {
         // For now, we'll only support PyPI search via native backend or pip
         // uv doesn't support search yet
         match self.backend {
-            InstallerBackend::Native | InstallerBackend::Uv | InstallerBackend::Pip => self.search_with_pip(query).await,
+            InstallerBackend::Native | InstallerBackend::Uv | InstallerBackend::Pip => {
+                self.search_with_pip(query).await
+            }
             InstallerBackend::Conda => self.search_with_conda(query).await,
             InstallerBackend::Poetry => self.search_with_poetry(query).await,
         }
     }
 
     pub async fn show_package(&self, package: &str) -> Result<String> {
+        validate_package_name(package)?;
         match self.backend {
-            InstallerBackend::Native | InstallerBackend::Uv | InstallerBackend::Pip => self.show_with_pip(package).await,
+            InstallerBackend::Native | InstallerBackend::Uv | InstallerBackend::Pip => {
+                self.show_with_pip(package).await
+            }
             InstallerBackend::Conda => self.show_with_conda(package).await,
             InstallerBackend::Poetry => self.show_with_poetry(package).await,
         }
@@ -324,21 +392,25 @@ impl PackageInstaller {
     async fn install_with_native(&self, package: &str, version: Option<&str>) -> Result<()> {
         // 1. Fetch metadata from PyPI (with caching)
         let resp = self.fetch_pypi_metadata_cached(package).await?;
-        
-        let releases = resp["releases"].as_object()
+
+        let releases = resp["releases"]
+            .as_object()
             .ok_or_else(|| anyhow::anyhow!("No releases found for {}", package))?;
 
         // 2. Select version
-        let target_version = version.unwrap_or_else(|| resp["info"]["version"].as_str().unwrap_or(""));
-        let files = releases.get(target_version)
+        let target_version =
+            version.unwrap_or_else(|| resp["info"]["version"].as_str().unwrap_or(""));
+        let files = releases
+            .get(target_version)
             .ok_or_else(|| anyhow::anyhow!("Version {} not found for {}", target_version, package))?
             .as_array()
             .ok_or_else(|| anyhow::anyhow!("Invalid release data"))?;
 
         // 3. Find a compatible wheel using robust selection
         let selector = WheelSelector::new();
-        let wheel_url = files.iter()
-            .filter(|f| f["filename"].as_str().map_or(false, |n| n.ends_with(".whl")))
+        let wheel_url = files
+            .iter()
+            .filter(|f| f["filename"].as_str().is_some_and(|n| n.ends_with(".whl")))
             .max_by_key(|f| {
                 let filename = f["filename"].as_str().unwrap_or("");
                 selector.score_wheel(filename)
@@ -351,43 +423,62 @@ impl PackageInstaller {
                     None
                 }
             })
-            .ok_or_else(|| anyhow::anyhow!("No compatible wheel found for {} (checked {} files)", package, files.len()))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No compatible wheel found for {} (checked {} files)",
+                    package,
+                    files.len()
+                )
+            })?;
 
-        let wheel_filename = wheel_url.split('/').last().unwrap_or("unknown");
+        if !wheel_url.starts_with("https://") {
+            return Err(anyhow::anyhow!("Refusing a wheel URL that is not HTTPS"));
+        }
+
+        let wheel_filename = wheel_url.split('/').next_back().unwrap_or("unknown");
 
         // 4. Download wheel (with caching)
         let bytes = if self.use_cache {
             Self::download_wheel_cached(wheel_url, wheel_filename).await?
         } else {
-            println!("{}", dim(format!("📦 Downloading wheel: {}", wheel_filename)));
+            println!(
+                "{}",
+                dim(format!("📦 Downloading wheel: {}", wheel_filename))
+            );
             Self::download_wheel(wheel_url).await?
         };
-        
+
         // 4.5. Verify wheel integrity (prefer SHA256, fallback to MD5)
-        let file_info = files.iter()
+        let file_info = files
+            .iter()
             .find(|f| f["filename"].as_str() == Some(wheel_filename));
-            
+
         let sha256 = file_info.and_then(|f| f["digests"]["sha256"].as_str());
         let md5 = file_info.and_then(|f| f["digests"]["md5"].as_str());
-        
+
         if sha256.is_some() || md5.is_some() {
             Self::verify_wheel_integrity(&bytes, sha256, md5)?;
         }
-        
+
         // 5. Determine install location
         let install_dir = self.get_install_dir()?;
-        
+
         // 5.5. Check disk space before installation
         Self::check_disk_space(&install_dir, bytes.len() as u64 * 3)?; // 3x for extraction overhead
-        
+
         // 5.6. Try to create install directory, fallback to user site if permission denied
         match std::fs::create_dir_all(&install_dir) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-                println!("{}", yellow("⚠️  Permission denied, trying user install..."));
+                println!(
+                    "{}",
+                    yellow("⚠️  Permission denied, trying user install...")
+                );
                 // For permission errors, we'll just fail gracefully for now
                 // Full user-site fallback would require refactoring the installer
-                return Err(anyhow::anyhow!("Permission denied. Try running with sudo or use --user flag"));
+                return Err(anyhow::anyhow!(
+                    "Permission denied. Try running with sudo or use --user flag"
+                ));
             }
             Err(e) => return Err(e.into()),
         }
@@ -404,21 +495,48 @@ impl PackageInstaller {
 
     async fn download_with_retry(url: &str, max_retries: u32) -> Result<Vec<u8>> {
         let mut last_error = None;
-        
+
         for attempt in 1..=max_retries {
-            match reqwest::get(url).await {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .redirect(reqwest::redirect::Policy::limited(5))
+                .build()?;
+            match client.get(url).send().await {
                 Ok(resp) if resp.status().is_success() => {
+                    if resp.url().scheme() != "https" {
+                        return Err(anyhow::anyhow!("Refusing a redirect to a non-HTTPS URL"));
+                    }
+                    if resp
+                        .content_length()
+                        .is_some_and(|length| length > MAX_DOWNLOAD_BYTES as u64)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Download exceeds the {} MiB limit",
+                            MAX_DOWNLOAD_BYTES / 1024 / 1024
+                        ));
+                    }
                     match resp.bytes().await {
-                        Ok(bytes) => return Ok(bytes.to_vec()),
+                        Ok(bytes) if bytes.len() <= MAX_DOWNLOAD_BYTES => return Ok(bytes.to_vec()),
+                        Ok(_) => {
+                            return Err(anyhow::anyhow!(
+                                "Download exceeds the {} MiB limit",
+                                MAX_DOWNLOAD_BYTES / 1024 / 1024
+                            ))
+                        }
                         Err(e) => {
                             last_error = Some(anyhow::anyhow!("Failed to read response: {}", e));
                             if attempt < max_retries {
                                 let wait_secs = 2u64.pow(attempt - 1); // Exponential backoff: 1s, 2s, 4s
-                                println!("{}", format!(
+                                println!(
+                                    "{}",
+                                    format!(
                                     "⚠️  Download interrupted (attempt {}/{}), retrying in {}s...",
                                     attempt, max_retries, wait_secs
-                                ));
-                                tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs)).await;
+                                )
+                                );
+                                tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs))
+                                    .await;
                             }
                         }
                     }
@@ -426,38 +544,49 @@ impl PackageInstaller {
                 Ok(resp) => {
                     last_error = Some(anyhow::anyhow!("HTTP error: {}", resp.status()));
                     if attempt < max_retries {
-                        println!("{}", format!(
-                            "⚠️  Download failed with status {} (attempt {}/{}), retrying...",
-                            resp.status(), attempt, max_retries
-                        ));
-                        tokio::time::sleep(tokio::time::Duration::from_secs(2u64.pow(attempt - 1))).await;
+                        println!(
+                            "{}",
+                            format!(
+                                "⚠️  Download failed with status {} (attempt {}/{}), retrying...",
+                                resp.status(),
+                                attempt,
+                                max_retries
+                            )
+                        );
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2u64.pow(attempt - 1)))
+                            .await;
                     }
                 }
                 Err(e) => {
                     last_error = Some(anyhow::anyhow!("Network error: {}", e));
                     if attempt < max_retries {
-                        println!("{}", format!(
-                            "⚠️  Network error (attempt {}/{}), retrying...",
-                            attempt, max_retries
-                        ));
-                        tokio::time::sleep(tokio::time::Duration::from_secs(2u64.pow(attempt - 1))).await;
+                        println!(
+                            "{}",
+                            format!(
+                                "⚠️  Network error (attempt {}/{}), retrying...",
+                                attempt, max_retries
+                            )
+                        );
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2u64.pow(attempt - 1)))
+                            .await;
                     }
                 }
             }
         }
-        
-        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Download failed after {} attempts", max_retries)))
+
+        Err(last_error
+            .unwrap_or_else(|| anyhow::anyhow!("Download failed after {} attempts", max_retries)))
     }
 
     async fn download_wheel_cached(url: &str, filename: &str) -> Result<Vec<u8>> {
         use std::io::Read;
-        
+
         // Create cache directory
         let cache_dir = snakegg::native::dirs::cache_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find cache directory"))?
             .join("snakepit")
             .join("wheels");
-        
+
         std::fs::create_dir_all(&cache_dir)?;
 
         // Use URL hash as cache key (more reliable than filename which might have version conflicts)
@@ -476,26 +605,29 @@ impl PackageInstaller {
         // Download and cache
         println!("{}", dim(format!("📦 Downloading wheel: {}", filename)));
         let bytes = Self::download_wheel(url).await?;
-        
+
         // Write to cache
         std::fs::write(&cache_path, &bytes)?;
-        
+
         Ok(bytes)
     }
 
     async fn fetch_pypi_metadata_cached(&self, package: &str) -> Result<serde_json::Value> {
         use std::time::SystemTime;
-        
+
         // Create metadata cache directory
         let cache_dir = snakegg::native::dirs::cache_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find cache directory"))?
             .join("snakepit")
             .join("metadata");
-        
+
         std::fs::create_dir_all(&cache_dir)?;
-        
-        let cache_path = cache_dir.join(format!("{}.json", package));
-        
+
+        let cache_path = cache_dir.join(format!(
+            "{}.json",
+            snakegg::native::hash::compute_sha256_hex(package.as_bytes())
+        ));
+
         // Check cache with TTL (1 hour)
         if cache_path.exists() {
             if let Ok(metadata) = std::fs::metadata(&cache_path) {
@@ -505,7 +637,10 @@ impl PackageInstaller {
                         if elapsed.as_secs() < 3600 {
                             if let Ok(cached) = std::fs::read_to_string(&cache_path) {
                                 if let Ok(json) = serde_json::from_str(&cached) {
-                                    println!("{}", dim(format!("💾 Using cached metadata for {}", package)));
+                                    println!(
+                                        "{}",
+                                        dim(format!("💾 Using cached metadata for {}", package))
+                                    );
                                     return Ok(json);
                                 }
                             }
@@ -514,17 +649,30 @@ impl PackageInstaller {
                 }
             }
         }
-        
+
         // Fetch from PyPI
-        println!("{}", dim(format!("🌐 Fetching metadata for {}...", package)));
+        println!(
+            "{}",
+            dim(format!("🌐 Fetching metadata for {}...", package))
+        );
         let url = format!("https://pypi.org/pypi/{}/json", package);
-        let resp = reqwest::get(&url).await?.json::<serde_json::Value>().await?;
-        
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .build()?;
+        let resp = client
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<serde_json::Value>()
+            .await?;
+
         // Cache response
         if let Ok(json_str) = serde_json::to_string_pretty(&resp) {
             let _ = std::fs::write(&cache_path, json_str);
         }
-        
+
         Ok(resp)
     }
 
@@ -547,8 +695,13 @@ impl PackageInstaller {
                 Ok(site)
             }
         } else {
-            let home = snakegg::native::dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
-            let mut site = home.join(".local").join("lib").join("python3.10").join("site-packages");
+            let home = snakegg::native::dirs::home_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+            let mut site = home
+                .join(".local")
+                .join("lib")
+                .join("python3.10")
+                .join("site-packages");
             if !site.exists() {
                 let lib = home.join(".local").join("lib");
                 if let Ok(entries) = std::fs::read_dir(&lib) {
@@ -566,50 +719,81 @@ impl PackageInstaller {
 
     fn unpack_wheel(bytes: &[u8], install_dir: &std::path::Path) -> Result<()> {
         use std::io::Cursor;
-        use zip::ZipArchive;
-        use rayon::prelude::*;
         use std::sync::{Arc, Mutex};
+        use zip::ZipArchive;
 
         println!("{}", dim("🔧 Extracting files..."));
 
         let reader = Cursor::new(bytes);
         let archive = Arc::new(Mutex::new(ZipArchive::new(reader)?));
-        
+
         // First pass: collect file metadata
         let file_count = {
             let archive_lock = archive.lock().unwrap();
             archive_lock.len()
         };
-        
+        if file_count > MAX_ARCHIVE_ENTRIES {
+            return Err(anyhow::anyhow!(
+                "Archive has too many entries ({file_count})"
+            ));
+        }
+
         let file_info: Vec<_> = (0..file_count)
             .map(|i| {
                 let mut archive_lock = archive.lock().unwrap();
                 let file = archive_lock.by_index(i).ok()?;
-                Some((
-                    i,
-                    file.name().to_string(),
-                    file.is_dir(),
-                    file.size() as usize,
-                ))
+                Some((i, file.name().to_string(), file.is_dir(), file.size()))
             })
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| anyhow::anyhow!("Failed to read archive metadata"))?;
 
+        let uncompressed_size: u64 = file_info.iter().map(|(_, _, _, size)| *size).sum();
+        if uncompressed_size > MAX_ARCHIVE_UNCOMPRESSED_BYTES
+            || file_info
+                .iter()
+                .any(|(_, _, _, size)| *size > MAX_ARCHIVE_FILE_BYTES)
+        {
+            return Err(anyhow::anyhow!("Archive exceeds extraction safety limits"));
+        }
+
         // Create all directories first (sequential, fast)
         for (_, name, is_dir, _) in &file_info {
             if *is_dir {
-                let outpath = install_dir.join(name);
+                let safe_path = std::path::Path::new(name).components().try_fold(
+                    std::path::PathBuf::new(),
+                    |mut path, component| match component {
+                        std::path::Component::Normal(part) => {
+                            path.push(part);
+                            Ok(path)
+                        }
+                        _ => Err(anyhow::anyhow!("Archive contains an unsafe path: {name}")),
+                    },
+                )?;
+                let outpath = install_dir.join(safe_path);
                 std::fs::create_dir_all(&outpath)?;
             }
         }
 
-        // Extract files in parallel
+        // Extract files (sequential: decompression is serialized on the shared archive lock anyway)
         let errors: Vec<_> = file_info
-            .par_iter()
+            .iter()
             .filter(|(_, _, is_dir, _)| !is_dir)
             .filter_map(|(idx, name, _, _)| {
-                let outpath = install_dir.join(name);
-                
+                let safe_path = match std::path::Path::new(name).components().try_fold(
+                    std::path::PathBuf::new(),
+                    |mut path, component| match component {
+                        std::path::Component::Normal(part) => {
+                            path.push(part);
+                            Ok(path)
+                        }
+                        _ => Err(anyhow::anyhow!("Archive contains an unsafe path: {name}")),
+                    },
+                ) {
+                    Ok(path) => path,
+                    Err(e) => return Some(e.to_string()),
+                };
+                let outpath = install_dir.join(safe_path);
+
                 // Ensure parent directory exists
                 if let Some(p) = outpath.parent() {
                     if !p.exists() {
@@ -618,7 +802,7 @@ impl PackageInstaller {
                         }
                     }
                 }
-                
+
                 // Extract file
                 let result = (|| -> Result<()> {
                     let mut archive_lock = archive.lock().unwrap();
@@ -627,7 +811,7 @@ impl PackageInstaller {
                     std::io::copy(&mut file, &mut outfile)?;
                     Ok(())
                 })();
-                
+
                 if let Err(e) = result {
                     Some(format!("Failed to extract {}: {}", name, e))
                 } else {
@@ -654,7 +838,7 @@ impl PackageInstaller {
     async fn list_with_native(&self) -> Result<Vec<String>> {
         // Scan site-packages for .dist-info directories
         let install_dir = if let Some(venv) = &self.venv_path {
-             let venv_path = std::path::Path::new(venv);
+            let venv_path = std::path::Path::new(venv);
             if cfg!(target_os = "windows") {
                 venv_path.join("Lib").join("site-packages")
             } else {
@@ -671,11 +855,16 @@ impl PackageInstaller {
                 site
             }
         } else {
-             let home = snakegg::native::dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
-            let mut site = home.join(".local").join("lib").join("python3.10").join("site-packages");
-             if !site.exists() {
-                 let lib = home.join(".local").join("lib");
-                 if let Ok(entries) = std::fs::read_dir(&lib) {
+            let home = snakegg::native::dirs::home_dir()
+                .ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+            let mut site = home
+                .join(".local")
+                .join("lib")
+                .join("python3.10")
+                .join("site-packages");
+            if !site.exists() {
+                let lib = home.join(".local").join("lib");
+                if let Ok(entries) = std::fs::read_dir(&lib) {
                     for entry in entries.flatten() {
                         if entry.file_name().to_string_lossy().starts_with("python") {
                             site = entry.path().join("site-packages");
@@ -704,7 +893,7 @@ impl PackageInstaller {
     async fn install_with_uv(&self, package: &str, version: Option<&str>) -> Result<()> {
         let mut cmd = Command::new("uv");
         cmd.arg("pip").arg("install");
-        
+
         if let Some(venv_path) = &self.venv_path {
             // uv uses VIRTUAL_ENV env var or --python
             cmd.env("VIRTUAL_ENV", venv_path);
@@ -718,19 +907,19 @@ impl PackageInstaller {
             // For now, let's use --system which installs to the python environment found.
             cmd.arg("--system");
         }
-        
+
         if !self.use_cache {
             cmd.arg("--no-cache");
         }
-        
+
         if let Some(ver) = version {
-            cmd.arg(&format!("{}=={}", package, ver));
+            cmd.arg(format!("{}=={}", package, ver));
         } else {
             cmd.arg(package);
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
             return Err(anyhow::anyhow!("Failed to install {}: {}", package, error));
@@ -741,62 +930,66 @@ impl PackageInstaller {
 
     async fn install_with_pip(&self, package: &str, version: Option<&str>) -> Result<()> {
         let mut cmd = Command::new("pip");
-        
+
         if let Some(venv_path) = &self.venv_path {
             cmd.arg("--python").arg(venv_path);
         } else {
             // If no venv is specified, assume user installation
             cmd.arg("--user");
         }
-        
+
         cmd.arg("install");
-        
+
         if !self.use_cache {
             cmd.arg("--no-cache-dir");
         }
-        
+
         if let Some(ver) = version {
-            cmd.arg(&format!("{}=={}", package, ver));
+            cmd.arg(format!("{}=={}", package, ver));
         } else {
             cmd.arg(package);
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            
+
             // Check for externally managed environment error (PEP 668)
             if error.contains("externally-managed-environment") {
                 eprintln!("{} Externally managed environment detected. Retrying with --break-system-packages...", yellow("WARN:"));
-                
+
                 let mut retry_cmd = Command::new("pip");
                 if let Some(venv_path) = &self.venv_path {
                     retry_cmd.arg("--python").arg(venv_path);
                 } else {
                     retry_cmd.arg("--user");
                 }
-                
+
                 retry_cmd.arg("install");
                 retry_cmd.arg("--break-system-packages");
-                
+
                 if !self.use_cache {
                     retry_cmd.arg("--no-cache-dir");
                 }
-                
+
                 if let Some(ver) = version {
-                    retry_cmd.arg(&format!("{}=={}", package, ver));
+                    retry_cmd.arg(format!("{}=={}", package, ver));
                 } else {
                     retry_cmd.arg(package);
                 }
-                
+
                 let retry_output = retry_cmd.output()?;
                 if retry_output.status.success() {
                     return Ok(());
                 }
-                
+
                 let retry_error = String::from_utf8_lossy(&retry_output.stderr);
-                return Err(anyhow::anyhow!("Failed to install {} (even with break-system-packages): {}", package, retry_error));
+                return Err(anyhow::anyhow!(
+                    "Failed to install {} (even with break-system-packages): {}",
+                    package,
+                    retry_error
+                ));
             }
 
             return Err(anyhow::anyhow!("Failed to install {}: {}", package, error));
@@ -808,19 +1001,19 @@ impl PackageInstaller {
     async fn install_with_conda(&self, package: &str, version: Option<&str>) -> Result<()> {
         let mut cmd = Command::new("conda");
         cmd.arg("install").arg("-y");
-        
+
         if let Some(venv_path) = &self.venv_path {
             cmd.arg("--prefix").arg(venv_path);
         }
-        
+
         if let Some(ver) = version {
-            cmd.arg(&format!("{}={}", package, ver));
+            cmd.arg(format!("{}={}", package, ver));
         } else {
             cmd.arg(package);
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
             return Err(anyhow::anyhow!("Failed to install {}: {}", package, error));
@@ -832,15 +1025,15 @@ impl PackageInstaller {
     async fn install_with_poetry(&self, package: &str, version: Option<&str>) -> Result<()> {
         let mut cmd = Command::new("poetry");
         cmd.arg("add");
-        
+
         if let Some(ver) = version {
-            cmd.arg(&format!("{}=={}", package, ver));
+            cmd.arg(format!("{}=={}", package, ver));
         } else {
             cmd.arg(package);
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
             return Err(anyhow::anyhow!("Failed to install {}: {}", package, error));
@@ -852,7 +1045,7 @@ impl PackageInstaller {
     async fn uninstall_with_uv(&self, package: &str) -> Result<()> {
         let mut cmd = Command::new("uv");
         cmd.arg("pip").arg("uninstall").arg(package);
-        
+
         if let Some(venv_path) = &self.venv_path {
             cmd.env("VIRTUAL_ENV", venv_path);
         } else {
@@ -860,10 +1053,14 @@ impl PackageInstaller {
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to uninstall {}: {}", package, error));
+            return Err(anyhow::anyhow!(
+                "Failed to uninstall {}: {}",
+                package,
+                error
+            ));
         }
 
         Ok(())
@@ -872,16 +1069,20 @@ impl PackageInstaller {
     async fn uninstall_with_pip(&self, package: &str) -> Result<()> {
         let mut cmd = Command::new("pip");
         cmd.arg("uninstall").arg("-y").arg(package);
-        
+
         if let Some(venv_path) = &self.venv_path {
             cmd.arg("--python").arg(venv_path);
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to uninstall {}: {}", package, error));
+            return Err(anyhow::anyhow!(
+                "Failed to uninstall {}: {}",
+                package,
+                error
+            ));
         }
 
         Ok(())
@@ -890,16 +1091,20 @@ impl PackageInstaller {
     async fn uninstall_with_conda(&self, package: &str) -> Result<()> {
         let mut cmd = Command::new("conda");
         cmd.arg("remove").arg("-y").arg(package);
-        
+
         if let Some(venv_path) = &self.venv_path {
             cmd.arg("--prefix").arg(venv_path);
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to uninstall {}: {}", package, error));
+            return Err(anyhow::anyhow!(
+                "Failed to uninstall {}: {}",
+                package,
+                error
+            ));
         }
 
         Ok(())
@@ -910,10 +1115,14 @@ impl PackageInstaller {
         cmd.arg("remove").arg(package);
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to uninstall {}: {}", package, error));
+            return Err(anyhow::anyhow!(
+                "Failed to uninstall {}: {}",
+                package,
+                error
+            ));
         }
 
         Ok(())
@@ -922,7 +1131,7 @@ impl PackageInstaller {
     async fn list_with_uv(&self) -> Result<Vec<String>> {
         let mut cmd = Command::new("uv");
         cmd.arg("pip").arg("freeze");
-        
+
         if let Some(venv_path) = &self.venv_path {
             cmd.env("VIRTUAL_ENV", venv_path);
         } else {
@@ -930,7 +1139,7 @@ impl PackageInstaller {
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             return Err(anyhow::anyhow!("Failed to list packages"));
         }
@@ -946,13 +1155,13 @@ impl PackageInstaller {
     async fn list_with_pip(&self) -> Result<Vec<String>> {
         let mut cmd = Command::new("pip");
         cmd.arg("list").arg("--format=freeze");
-        
+
         if let Some(venv_path) = &self.venv_path {
             cmd.arg("--python").arg(venv_path);
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             return Err(anyhow::anyhow!("Failed to list packages"));
         }
@@ -968,13 +1177,13 @@ impl PackageInstaller {
     async fn list_with_conda(&self) -> Result<Vec<String>> {
         let mut cmd = Command::new("conda");
         cmd.arg("list");
-        
+
         if let Some(venv_path) = &self.venv_path {
             cmd.arg("--prefix").arg(venv_path);
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             return Err(anyhow::anyhow!("Failed to list packages"));
         }
@@ -993,7 +1202,7 @@ impl PackageInstaller {
         cmd.arg("show").arg("--only=main");
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             return Err(anyhow::anyhow!("Failed to list packages"));
         }
@@ -1009,140 +1218,139 @@ impl PackageInstaller {
     async fn search_with_pip(&self, query: &str) -> Result<Vec<String>> {
         let mut cmd = Command::new("pip");
         cmd.arg("search").arg(query);
-        
+
         println!("{}", dim("🌐 Searching PyPI..."));
-        
+
         // Fallback: try `pip search` just in case user has a custom index
         let output = cmd.output()?;
         if output.status.success() {
-             let results: Vec<String> = String::from_utf8_lossy(&output.stdout)
+            let results: Vec<String> = String::from_utf8_lossy(&output.stdout)
                 .lines()
                 .take(10)
                 .map(|l| l.to_string())
                 .collect();
-             return Ok(results);
+            return Ok(results);
         }
-        
+
         // If pip search fails (likely), return a helpful message or empty list
-        Ok(vec![format!("PyPI search via pip is limited. Try visiting https://pypi.org/search/?q={}", query)])
+        Ok(vec![format!(
+            "PyPI search via pip is limited. Try visiting https://pypi.org/search/?q={}",
+            query
+        )])
     }
 
     async fn search_with_conda(&self, query: &str) -> Result<Vec<String>> {
         let mut cmd = Command::new("conda");
         cmd.arg("search").arg(query);
-        
+
         let output = cmd.output()?;
         if !output.status.success() {
             return Err(anyhow::anyhow!("Failed to search conda"));
         }
-        
+
         let results: Vec<String> = String::from_utf8_lossy(&output.stdout)
             .lines()
             .take(10)
             .map(|l| l.to_string())
             .collect();
-            
+
         Ok(results)
     }
 
     async fn search_with_poetry(&self, query: &str) -> Result<Vec<String>> {
         let mut cmd = Command::new("poetry");
         cmd.arg("search").arg(query);
-        
+
         let output = cmd.output()?;
         if !output.status.success() {
             return Err(anyhow::anyhow!("Failed to search poetry"));
         }
-        
+
         let results: Vec<String> = String::from_utf8_lossy(&output.stdout)
             .lines()
             .take(10)
             .map(|l| l.to_string())
             .collect();
-            
+
         Ok(results)
     }
 
     async fn show_with_pip(&self, package: &str) -> Result<String> {
         let mut cmd = Command::new("pip");
         cmd.arg("show").arg(package);
-        
+
         let output = cmd.output()?;
         if !output.status.success() {
             return Err(anyhow::anyhow!("Package not found or not installed"));
         }
-        
+
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
     async fn show_with_conda(&self, package: &str) -> Result<String> {
         let mut cmd = Command::new("conda");
         cmd.arg("list").arg(package);
-        
+
         let output = cmd.output()?;
         if !output.status.success() {
             return Err(anyhow::anyhow!("Package not found"));
         }
-        
+
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
     async fn show_with_poetry(&self, package: &str) -> Result<String> {
         let mut cmd = Command::new("poetry");
         cmd.arg("show").arg(package);
-        
+
         let output = cmd.output()?;
         if !output.status.success() {
             return Err(anyhow::anyhow!("Package not found"));
         }
-        
+
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
-    
-    // Helper: Verify wheel integrity using SHA256 or MD5
-    fn verify_wheel_integrity(bytes: &[u8], sha256: Option<&str>, md5: Option<&str>) -> Result<()> {
+
+    // Wheels must carry a SHA-256 digest from PyPI metadata.
+    fn verify_wheel_integrity(
+        bytes: &[u8],
+        sha256: Option<&str>,
+        _md5: Option<&str>,
+    ) -> Result<()> {
         if let Some(expected) = sha256 {
             let actual = snakegg::native::hash::compute_sha256_hex(bytes);
             if actual != expected {
                 return Err(anyhow::anyhow!(
                     "SHA256 integrity check failed: expected {}, got {}",
-                    expected, actual
+                    expected,
+                    actual
                 ));
             }
             println!("{}", dim("✅ SHA256 integrity verified"));
             return Ok(());
         }
-        
-        if let Some(expected) = md5 {
-            let actual = snakegg::native::hash::compute_hex(bytes);
-            if actual != expected {
-                return Err(anyhow::anyhow!(
-                    "MD5 integrity check failed: expected {}, got {}",
-                    expected, actual
-                ));
-            }
-            println!("{}", dim("✅ MD5 integrity verified"));
-            return Ok(());
-        }
-        
-        Ok(())
+
+        Err(anyhow::anyhow!(
+            "Wheel metadata did not include a SHA-256 digest"
+        ))
     }
-    
+
     // Helper: Check available disk space
     fn check_disk_space(_install_dir: &std::path::Path, _required_bytes: u64) -> Result<()> {
         // Try to get filesystem stats
         #[cfg(target_os = "linux")]
         {
-            if let Ok(_metadata) = std::fs::metadata(_install_dir.parent().unwrap_or(_install_dir)) {
+            if let Ok(_metadata) = std::fs::metadata(_install_dir.parent().unwrap_or(_install_dir))
+            {
                 // This is a simplified check - in production would use statvfs
                 // For now, just ensure we can write
                 return Ok(());
             }
         }
-        
+
         // Fallback: try to write a test file
         let test_file = _install_dir.join(".snakepit_disk_check");
-        match std::fs::write(&test_file, &vec![0u8; 1024]) {
+        match std::fs::write(&test_file, vec![0u8; 1024]) {
             Ok(_) => {
                 let _ = std::fs::remove_file(&test_file);
                 Ok(())
@@ -1150,22 +1358,8 @@ impl PackageInstaller {
             Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
                 Err(anyhow::anyhow!("Permission denied"))
             }
-            Err(_) => {
-                Err(anyhow::anyhow!("Insufficient disk space"))
-            }
+            Err(_) => Err(anyhow::anyhow!("Insufficient disk space")),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_backend_detection() {
-        let backend = InstallerBackend::detect();
-        // This test will pass regardless of what's installed
-        assert!(matches!(backend, InstallerBackend::Uv | InstallerBackend::Pip | InstallerBackend::Conda | InstallerBackend::Poetry | InstallerBackend::Native));
     }
 }
 
@@ -1180,8 +1374,12 @@ impl WheelSelector {
         let os = std::env::consts::OS.to_string();
         let arch = std::env::consts::ARCH.to_string();
         let python_version = Self::detect_python_version();
-        
-        Self { os, arch, python_version }
+
+        Self {
+            os,
+            arch,
+            python_version,
+        }
     }
 
     fn detect_python_version() -> String {
@@ -1189,7 +1387,11 @@ impl WheelSelector {
         let output = std::process::Command::new("python3")
             .arg("--version")
             .output()
-            .or_else(|_| std::process::Command::new("python").arg("--version").output());
+            .or_else(|_| {
+                std::process::Command::new("python")
+                    .arg("--version")
+                    .output()
+            });
 
         if let Ok(output) = output {
             let version_str = String::from_utf8_lossy(&output.stdout);
@@ -1202,7 +1404,7 @@ impl WheelSelector {
                 }
             }
         }
-        
+
         // Fallback to 3.10 if detection fails
         "310".to_string()
     }
@@ -1232,11 +1434,15 @@ impl WheelSelector {
             score += 10; // Universal fallback
         } else if platform_match {
             score += 100; // Platform match
-            
+
             // Arch check
-            if self.arch == "x86_64" && (platform_tag.contains("x86_64") || platform_tag.contains("amd64")) {
+            if self.arch == "x86_64"
+                && (platform_tag.contains("x86_64") || platform_tag.contains("amd64"))
+            {
                 score += 50;
-            } else if self.arch == "aarch64" && (platform_tag.contains("aarch64") || platform_tag.contains("arm64")) {
+            } else if self.arch == "aarch64"
+                && (platform_tag.contains("aarch64") || platform_tag.contains("arm64"))
+            {
                 score += 50;
             } else {
                 return 0; // Wrong arch
@@ -1251,8 +1457,8 @@ impl WheelSelector {
         } else if python_tag.contains(&format!("cp{}", self.python_version)) {
             score += 50; // Exact version match
         } else if python_tag.contains("cp3") {
-             // Generic CPython 3 match (risky but better than nothing)
-             score += 5;
+            // Generic CPython 3 match (risky but better than nothing)
+            score += 5;
         } else {
             return 0; // Incompatible python version
         }
@@ -1265,5 +1471,46 @@ impl WheelSelector {
         }
 
         score
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_backend_detection() {
+        let backend = InstallerBackend::detect();
+        // This test will pass regardless of what's installed
+        assert!(matches!(
+            backend,
+            InstallerBackend::Uv
+                | InstallerBackend::Pip
+                | InstallerBackend::Conda
+                | InstallerBackend::Poetry
+                | InstallerBackend::Native
+        ));
+    }
+
+    #[test]
+    fn package_name_validation_rejects_options_and_paths() {
+        assert!(validate_package_name("requests").is_ok());
+        for invalid in [
+            "../escape",
+            "--index-url",
+            "name;command",
+            "name with spaces",
+            "",
+        ] {
+            assert!(
+                validate_package_name(invalid).is_err(),
+                "{invalid} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn wheel_integrity_requires_sha256() {
+        assert!(PackageInstaller::verify_wheel_integrity(b"wheel", None, Some("legacy")).is_err());
     }
 }

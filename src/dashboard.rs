@@ -1,13 +1,8 @@
-use crate::resolver::DependencyResolver;
 use crate::dependency::ProjectDependencies;
-use serde::Serialize;
+use crate::resolver::DependencyResolver;
 use anyhow::Result;
+use serde::Serialize;
 use std::collections::{HashSet, VecDeque};
-use axum::{
-    routing::get,
-    response::{Html, Json},
-    Router,
-};
 use std::net::SocketAddr;
 
 #[derive(Serialize, Clone)]
@@ -39,43 +34,92 @@ pub struct DashboardServer {
 
 impl DashboardServer {
     pub fn new(project_name: String, project_deps: ProjectDependencies) -> Self {
-        Self { project_name, project_deps }
+        Self {
+            project_name,
+            project_deps,
+        }
     }
 
     pub async fn start(self, port: u16) -> Result<()> {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         println!("🚀 Snakepit Dashboard launching on http://{}", addr);
 
-        let project_name_capture = self.project_name.clone();
-        let project_deps_capture = self.project_deps.clone();
-
-        let app = Router::new()
-            .route("/", get(|| async {
-                Html(include_str!("dashboard.html"))
-            }))
-            .route("/api/graph", get(move || {
-                let p_name = project_name_capture.clone();
-                let p_deps = project_deps_capture.clone();
-                async move {
-                    match generate_graph_data(&p_name, &p_deps).await {
-                        Ok(data) => Json(data),
-                        Err(_) => Json(GraphData {
-                            project_name: p_name,
-                            nodes: vec![],
-                            edges: vec![],
-                        }),
-                    }
-                }
-            }));
-
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, app).await?;
-        
-        Ok(())
+        let project_name = self.project_name;
+        let project_deps = self.project_deps;
+
+        loop {
+            let (mut stream, _) = listener.accept().await?;
+            let project_name = project_name.clone();
+            let project_deps = project_deps.clone();
+            tokio::spawn(async move {
+                if let Err(e) = handle_connection(&mut stream, &project_name, &project_deps).await {
+                    eprintln!("Dashboard connection error: {}", e);
+                }
+            });
+        }
     }
 }
 
-async fn generate_graph_data(project_name: &str, project_deps: &ProjectDependencies) -> Result<GraphData> {
+/// Minimal HTTP/1.1 handler for the two dashboard routes (`/` and `/api/graph`).
+/// Reads a single request head — these routes take no request body — and closes
+/// the connection after each response, so no keep-alive bookkeeping is needed.
+async fn handle_connection(
+    stream: &mut tokio::net::TcpStream,
+    project_name: &str,
+    project_deps: &ProjectDependencies,
+) -> Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut buf = [0u8; 8192];
+    let n = stream.read(&mut buf).await?;
+    let request = String::from_utf8_lossy(&buf[..n]);
+    let request_line = request.lines().next().unwrap_or_default();
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or_default();
+    let path = parts
+        .next()
+        .unwrap_or_default()
+        .split('?')
+        .next()
+        .unwrap_or_default();
+
+    let (status, content_type, body) = match (method, path) {
+        ("GET", "/") => (
+            "200 OK",
+            "text/html; charset=utf-8",
+            include_str!("dashboard.html").to_string(),
+        ),
+        ("GET", "/api/graph") => {
+            let data = generate_graph_data(project_name, project_deps)
+                .await
+                .unwrap_or_else(|_| GraphData {
+                    project_name: project_name.to_string(),
+                    nodes: vec![],
+                    edges: vec![],
+                });
+            ("200 OK", "application/json", serde_json::to_string(&data)?)
+        }
+        _ => (
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            "not found".to_string(),
+        ),
+    };
+
+    let response = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(response.as_bytes()).await?;
+    stream.shutdown().await?;
+    Ok(())
+}
+
+async fn generate_graph_data(
+    project_name: &str,
+    project_deps: &ProjectDependencies,
+) -> Result<GraphData> {
     let mut resolver = DependencyResolver::new();
     let resolved = resolver.resolve_dependencies(project_deps).await?;
 
@@ -103,7 +147,10 @@ async fn generate_graph_data(project_name: &str, project_deps: &ProjectDependenc
             r#type: "direct".to_string(),
             description: None,
         });
-        edges.push(Edge { from: "root".to_string(), to: dep.name.clone() });
+        edges.push(Edge {
+            from: "root".to_string(),
+            to: dep.name.clone(),
+        });
         queue.push_back(dep.clone());
         visited.insert(dep.name.clone());
     }
@@ -121,7 +168,10 @@ async fn generate_graph_data(project_name: &str, project_deps: &ProjectDependenc
                 visited.insert(sub_dep.name.clone());
                 queue.push_back(sub_dep.clone());
             }
-            edges.push(Edge { from: current.name.clone(), to: sub_dep.name.clone() });
+            edges.push(Edge {
+                from: current.name.clone(),
+                to: sub_dep.name.clone(),
+            });
         }
     }
 

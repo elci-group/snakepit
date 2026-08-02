@@ -221,6 +221,8 @@ snakepit run lint
 
 ## SnakeEgg: Organic Evolution
 
+> **Status:** These commands are **not part of the current CLI** (removed to focus the project on core package management; the design is preserved in `report_chapters/COMPLETE_REPORT.md`). The examples below describe the planned interface.
+
 **Note:** These features are optional and for advanced use cases.
 
 ### Initializing a Nest

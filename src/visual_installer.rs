@@ -1,8 +1,9 @@
+use crate::snakegg;
 use anyhow::Result;
-use std::process::{Command, Stdio};
+use snakegg::native::style::{blue, cyan, green};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use snakegg::native::style::{green, blue, cyan};
+use std::process::{Command, Stdio};
 
 /// Visual installer that uses the snake game GUI
 pub struct VisualInstaller {
@@ -12,18 +13,14 @@ pub struct VisualInstaller {
 
 impl VisualInstaller {
     pub fn new() -> Self {
-        let vip_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("vip");
-        
+        let vip_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vip");
+
         // Check if GUI should be used (DISPLAY available and pygame installed)
-        let use_gui = std::env::var("DISPLAY").is_ok() 
+        let use_gui = std::env::var("DISPLAY").is_ok()
             && std::env::var("VIP_NO_GUI").is_err()
             && vip_path.exists();
-        
-        Self {
-            vip_path,
-            use_gui,
-        }
+
+        Self { vip_path, use_gui }
     }
 
     /// Install a package with visual feedback
@@ -47,20 +44,18 @@ impl VisualInstaller {
 
         let mut cmd = Command::new(&self.vip_path);
         cmd.arg("install")
-           .arg(&package_spec)
-           .stdin(Stdio::null())
-           .stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+            .arg(&package_spec)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         let mut child = cmd.spawn()?;
-        
+
         // Stream output
         if let Some(stdout) = child.stdout.take() {
             let reader = BufReader::new(stdout);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    println!("{}", line);
-                }
+            for line in reader.lines().flatten() {
+                println!("{}", line);
             }
         }
 
@@ -70,7 +65,10 @@ impl VisualInstaller {
             println!("{}", green("✓ Package installed successfully!"));
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Installation failed with exit code: {}", status.code().unwrap_or(-1)))
+            Err(anyhow::anyhow!(
+                "Installation failed with exit code: {}",
+                status.code().unwrap_or(-1)
+            ))
         }
     }
 
@@ -85,7 +83,7 @@ impl VisualInstaller {
         println!("{}", blue("Installing package (classic mode)..."));
 
         let output = Command::new("python3")
-            .args(&["-m", "pip", "install", &package_spec])
+            .args(["-m", "pip", "install", &package_spec])
             .output()?;
 
         if output.status.success() {
@@ -105,7 +103,13 @@ impl VisualInstaller {
 
         if self.use_gui && packages.len() > 1 {
             // Use VIP for batch installation
-            println!("{}", cyan(format!("🐍 Installing {} packages with visualization...", packages.len())));
+            println!(
+                "{}",
+                cyan(format!(
+                    "🐍 Installing {} packages with visualization...",
+                    packages.len()
+                ))
+            );
 
             let mut cmd = Command::new(&self.vip_path);
             cmd.arg("install");
@@ -113,8 +117,8 @@ impl VisualInstaller {
                 cmd.arg(pkg);
             }
             cmd.stdin(Stdio::null())
-               .stdout(Stdio::inherit())
-               .stderr(Stdio::inherit());
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit());
 
             let status = cmd.status()?;
 

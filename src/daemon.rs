@@ -1,23 +1,24 @@
-use crate::installer::{PackageInstaller, InstallerBackend};
 use crate::config::SnakepitConfig;
+use crate::installer::{InstallerBackend, PackageInstaller};
+use crate::logger::GitLogger;
 use crate::process_monitor::ProcessMonitor;
+use crate::snakegg;
+use crate::snakeskin::{Snakeskin, SnakeskinState};
 use anyhow::Result;
-use snakegg::native::style::{red, green, yellow, blue, cyan, dim};
 use snakegg::native::dirs;
 use snakegg::native::id;
+use snakegg::native::style::{blue, cyan, dim, green, red, yellow};
+use snakegg::native::undertaker::TheUndertaker;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH};
 use sysinfo::{Pid, System};
 use tokio::fs;
+use tokio::process::Command;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::sleep;
-use tokio::process::Command;
-use snakegg::native::undertaker::TheUndertaker;
-use crate::snakeskin::{Snakeskin, SnakeskinState};
-use crate::logger::GitLogger;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DaemonConfig {
@@ -36,15 +37,11 @@ impl Default for DaemonConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            auto_install: true,
+            auto_install: false,
             check_interval: Duration::from_secs(5),
             max_install_attempts: 3,
             whitelist_modules: Vec::new(),
-            blacklist_modules: vec![
-                "sys".to_string(),
-                "os".to_string(),
-                "builtins".to_string(),
-            ],
+            blacklist_modules: vec!["sys".to_string(), "os".to_string(), "builtins".to_string()],
             log_file: None,
             pid_file: None,
             git_log_repo: None,
@@ -95,10 +92,10 @@ impl SnakepitDaemon {
             daemon_id: id::new(),
             process_monitor: ProcessMonitor::new(),
             undertaker: Arc::new(Mutex::new(TheUndertaker::new())),
-            snakeskin: Snakeskin::new().unwrap_or_else(|_| Snakeskin::new().unwrap()), 
+            snakeskin: Snakeskin::new().unwrap_or_else(|_| Snakeskin::new().unwrap()),
             logger: Arc::new(Mutex::new(GitLogger::new(
                 dirs::data_dir().unwrap().join("snakepit").join("logs"),
-                git_repo
+                git_repo,
             ))),
         }
     }
@@ -117,7 +114,7 @@ impl SnakepitDaemon {
 
     pub async fn start(&self) -> Result<()> {
         println!("{}", blue("🐍 Starting Snakepit Daemon..."));
-        
+
         // Write PID file
         if let Some(pid_file) = &self.config.pid_file {
             fs::write(pid_file, std::process::id().to_string()).await?;
@@ -134,7 +131,7 @@ impl SnakepitDaemon {
 
     pub async fn stop(&self) -> Result<()> {
         println!("{}", yellow("🛑 Stopping Snakepit Daemon..."));
-        
+
         {
             let mut running = self.running.write().await;
             *running = false;
@@ -151,7 +148,7 @@ impl SnakepitDaemon {
     pub async fn status(&self) -> Result<DaemonStatus> {
         let running = *self.running.read().await;
         let error_count = self.error_cache.read().await.len();
-        
+
         Ok(DaemonStatus {
             running,
             daemon_id: self.daemon_id.clone(),
@@ -183,7 +180,10 @@ impl SnakepitDaemon {
             // Could also restore config or other things
         }
 
-        println!("{}", dim("Monitoring Python processes for missing modules..."));
+        println!(
+            "{}",
+            dim("Monitoring Python processes for missing modules...")
+        );
 
         let mut last_save = SystemTime::now();
 
@@ -208,16 +208,23 @@ impl SnakepitDaemon {
             if let Ok(elapsed) = last_save.elapsed() {
                 if elapsed.as_secs() >= 60 {
                     let errors = self.error_cache.read().await.values().cloned().collect();
-                    let installed = self.installer.list_installed_packages().await.unwrap_or_default();
-                    
+                    let installed = self
+                        .installer
+                        .list_installed_packages()
+                        .await
+                        .unwrap_or_default();
+
                     let state = SnakeskinState {
-                        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs(),
+                        timestamp: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs(),
                         daemon_id: self.daemon_id.clone(),
                         active_errors: errors,
                         config: self.config.clone(),
                         installed_packages: installed,
                     };
-                    
+
                     if let Err(e) = self.snakeskin.shed(&state).await {
                         eprintln!("Failed to shed snakeskin: {}", e);
                     }
@@ -256,10 +263,10 @@ impl SnakepitDaemon {
 
     fn is_python_process(&self, process: &sysinfo::Process) -> bool {
         let name = process.name().to_lowercase();
-        name.contains("python") || 
-        name.contains("python3") || 
-        name.contains("python2") ||
-        process.cmd().iter().any(|arg| arg.contains("python"))
+        name.contains("python")
+            || name.contains("python3")
+            || name.contains("python2")
+            || process.cmd().iter().any(|arg| arg.contains("python"))
     }
 
     async fn check_process_errors(&self, pid: Pid, process: &sysinfo::Process) -> Result<()> {
@@ -282,7 +289,7 @@ impl SnakepitDaemon {
         // 1. Simulation check (for testing)
         // If the process is a special test process, return a simulated error
         // In a real scenario, this would be more sophisticated
-        
+
         // 2. Check for crash logs in CWD
         // This relies on the Python application wrapping its execution or logging to a file
         // We check for 'snakepit_crash.log' in the process's working directory
@@ -297,8 +304,8 @@ impl SnakepitDaemon {
                             if line.contains("ModuleNotFoundError") {
                                 // Extract module name: ModuleNotFoundError: No module named 'xyz'
                                 if let Some(start) = line.find("'") {
-                                    if let Some(end) = line[start+1..].find("'") {
-                                        let module = line[start+1..start+1+end].to_string();
+                                    if let Some(end) = line[start + 1..].find("'") {
+                                        let module = line[start + 1..start + 1 + end].to_string();
                                         // Verify it's not resolved yet (check file mtime vs last check?)
                                         // For now, we assume if it's there, it's relevant
                                         return Ok(Some(module));
@@ -327,8 +334,9 @@ impl SnakepitDaemon {
         }
 
         // Check if we have a whitelist and module is not in it
-        if !self.config.whitelist_modules.is_empty() && 
-           !self.config.whitelist_modules.contains(&module_name) {
+        if !self.config.whitelist_modules.is_empty()
+            && !self.config.whitelist_modules.contains(&module_name)
+        {
             return Ok(());
         }
 
@@ -343,13 +351,20 @@ impl SnakepitDaemon {
             }
         }
 
-        println!("{}", yellow(format!("🔍 Detected missing module: {}", module_name)));
+        println!(
+            "{}",
+            yellow(format!("🔍 Detected missing module: {}", module_name))
+        );
         self.send_notification(
             "Missing Module Detected",
-            &format!("Found missing Python module: {} (PID: {})", module_name, pid),
-            "normal"
-        ).await;
-        
+            &format!(
+                "Found missing Python module: {} (PID: {})",
+                module_name, pid
+            ),
+            "normal",
+        )
+        .await;
+
         if self.config.auto_install {
             self.auto_install_module(&module_name, &cache_key).await?;
         }
@@ -358,13 +373,28 @@ impl SnakepitDaemon {
     }
 
     async fn auto_install_module(&self, module_name: &str, cache_key: &str) -> Result<()> {
-        println!("{}", blue(format!("📦 Auto-installing module: {}", module_name)));
+        crate::installer::validate_package_name(module_name)?;
+        if self.config.whitelist_modules.is_empty()
+            || !self
+                .config
+                .whitelist_modules
+                .contains(&module_name.to_string())
+        {
+            return Err(anyhow::anyhow!(
+                "Automatic installation requires an explicit module whitelist"
+            ));
+        }
+        println!(
+            "{}",
+            blue(format!("📦 Auto-installing module: {}", module_name))
+        );
         self.send_notification(
             "Installing Module",
             &format!("Attempting to install: {}", module_name),
-            "normal"
-        ).await;
-        
+            "normal",
+        )
+        .await;
+
         // Update error cache
         {
             let mut cache = self.error_cache.write().await;
@@ -373,7 +403,10 @@ impl SnakepitDaemon {
                 error_message: "Missing module detected".to_string(),
                 process_id: 0, // We'll update this properly
                 timestamp: std::time::SystemTime::now(),
-                install_attempts: cache.get(cache_key).map(|e| e.install_attempts + 1).unwrap_or(1),
+                install_attempts: cache
+                    .get(cache_key)
+                    .map(|e| e.install_attempts + 1)
+                    .unwrap_or(1),
             };
             cache.insert(cache_key.to_string(), error);
         }
@@ -381,13 +414,17 @@ impl SnakepitDaemon {
         // Attempt to install the module
         match self.installer.install_package(module_name, None).await {
             Ok(_) => {
-                println!("{}", green(format!("✅ Successfully installed: {}", module_name)));
+                println!(
+                    "{}",
+                    green(format!("✅ Successfully installed: {}", module_name))
+                );
                 self.send_notification(
                     "Installation Successful",
                     &format!("✅ Successfully installed: {}", module_name),
-                    "low"
-                ).await;
-                
+                    "low",
+                )
+                .await;
+
                 // Remove from error cache on success
                 {
                     let mut cache = self.error_cache.write().await;
@@ -395,12 +432,16 @@ impl SnakepitDaemon {
                 }
             }
             Err(e) => {
-                eprintln!("{}", red(format!("❌ Failed to install {}: {}", module_name, e)));
+                eprintln!(
+                    "{}",
+                    red(format!("❌ Failed to install {}: {}", module_name, e))
+                );
                 self.send_notification(
                     "Installation Failed",
                     &format!("❌ Failed to install {}: {}", module_name, e),
-                    "critical"
-                ).await;
+                    "critical",
+                )
+                .await;
             }
         }
 
@@ -408,8 +449,12 @@ impl SnakepitDaemon {
     }
 
     pub async fn simulate_missing_module(&self, module_name: &str) -> Result<()> {
-        println!("{}", cyan(format!("🧪 Simulating missing module: {}", module_name)));
-        self.handle_missing_module(module_name.to_string(), Pid::from(0)).await
+        println!(
+            "{}",
+            cyan(format!("🧪 Simulating missing module: {}", module_name))
+        );
+        self.handle_missing_module(module_name.to_string(), Pid::from(0))
+            .await
     }
 }
 
@@ -423,6 +468,12 @@ pub struct DaemonStatus {
 
 pub struct DaemonManager {
     config_path: PathBuf,
+}
+
+impl Default for DaemonManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DaemonManager {
@@ -500,7 +551,7 @@ mod tests {
     fn test_daemon_config_default() {
         let config = DaemonConfig::default();
         assert!(config.enabled);
-        assert!(config.auto_install);
+        assert!(!config.auto_install);
         assert_eq!(config.check_interval, Duration::from_secs(5));
     }
 

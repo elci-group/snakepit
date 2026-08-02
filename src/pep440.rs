@@ -1,12 +1,13 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
+use regex::Regex;
 use std::cmp::Ordering;
 use std::fmt;
-use regex::Regex;
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
-lazy_static! {
-    // Regex adapted from pypa/packaging
-    static ref VERSION_PATTERN: Regex = Regex::new(r"(?ix)
+// Regex adapted from pypa/packaging
+static VERSION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?ix)
         \A
         v?
         (?:
@@ -37,8 +38,10 @@ lazy_static! {
         )
         (?:\+(?P<local>[a-z0-9]+(?:[-_\.][a-z0-9]+)*))?       # local version
         \z
-    ").unwrap();
-}
+    ",
+    )
+    .unwrap()
+});
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Version {
@@ -52,36 +55,43 @@ pub struct Version {
 
 impl Version {
     pub fn parse(version_str: &str) -> Result<Self> {
-        let caps = VERSION_PATTERN.captures(version_str.trim())
+        let caps = VERSION_PATTERN
+            .captures(version_str.trim())
             .ok_or_else(|| anyhow!("Invalid PEP 440 version: {}", version_str))?;
 
-        let epoch = caps.name("epoch")
+        let epoch = caps
+            .name("epoch")
             .map(|m| m.as_str().parse::<u64>())
             .transpose()?
             .unwrap_or(0);
 
-        let release = caps.name("release")
-            .map(|m| m.as_str().split('.')
-                .map(|s| s.parse::<u64>())
-                .collect::<Result<Vec<u64>, _>>()
-            )
+        let release = caps
+            .name("release")
+            .map(|m| {
+                m.as_str()
+                    .split('.')
+                    .map(|s| s.parse::<u64>())
+                    .collect::<Result<Vec<u64>, _>>()
+            })
             .transpose()?
             .unwrap_or_default();
 
         let pre = if let Some(pre_l) = caps.name("pre_l") {
             let pre_type = pre_l.as_str().to_lowercase();
-            let pre_n = caps.name("pre_n")
+            let pre_n = caps
+                .name("pre_n")
                 .map(|m| m.as_str().parse::<u64>())
                 .transpose()?
                 .unwrap_or(0);
-            
+
             // Normalize pre-release tags
             let normalized_type = match pre_type.as_str() {
                 "alpha" => "a",
                 "beta" => "b",
                 "c" | "pre" | "preview" => "rc",
                 _ => pre_type.as_str(),
-            }.to_string();
+            }
+            .to_string();
 
             Some((normalized_type, pre_n))
         } else {
@@ -90,8 +100,9 @@ impl Version {
 
         let post = if let Some(post_n1) = caps.name("post_n1") {
             Some(post_n1.as_str().parse::<u64>()?)
-        } else if let Some(_) = caps.name("post_l") {
-            let post_n2 = caps.name("post_n2")
+        } else if caps.name("post_l").is_some() {
+            let post_n2 = caps
+                .name("post_n2")
                 .map(|m| m.as_str().parse::<u64>())
                 .transpose()?
                 .unwrap_or(0);
@@ -100,8 +111,9 @@ impl Version {
             None
         };
 
-        let dev = if let Some(_) = caps.name("dev_l") {
-            let dev_n = caps.name("dev_n")
+        let dev = if caps.name("dev_l").is_some() {
+            let dev_n = caps
+                .name("dev_n")
                 .map(|m| m.as_str().parse::<u64>())
                 .transpose()?
                 .unwrap_or(0);
@@ -133,7 +145,7 @@ impl Ord for Version {
     fn cmp(&self, other: &Self) -> Ordering {
         // 1. Epoch
         match self.epoch.cmp(&other.epoch) {
-            Ordering::Equal => {},
+            Ordering::Equal => {}
             ord => return ord,
         }
 
@@ -152,42 +164,40 @@ impl Ord for Version {
         // 3. Pre-release
         // Rules: No pre-release > pre-release
         match (&self.pre, &other.pre) {
-            (None, None) => {},
+            (None, None) => {}
             (Some(_), None) => return Ordering::Less,
             (None, Some(_)) => return Ordering::Greater,
-            (Some((t1, n1)), Some((t2, n2))) => {
-                match t1.cmp(t2) {
-                    Ordering::Equal => match n1.cmp(n2) {
-                        Ordering::Equal => {},
-                        ord => return ord,
-                    },
+            (Some((t1, n1)), Some((t2, n2))) => match t1.cmp(t2) {
+                Ordering::Equal => match n1.cmp(n2) {
+                    Ordering::Equal => {}
                     ord => return ord,
-                }
-            }
+                },
+                ord => return ord,
+            },
         }
 
         // 4. Post-release
         // Rules: Post-release > No post-release
         match (self.post, other.post) {
-            (None, None) => {},
+            (None, None) => {}
             (Some(_), None) => return Ordering::Greater,
             (None, Some(_)) => return Ordering::Less,
             (Some(n1), Some(n2)) => match n1.cmp(&n2) {
-                Ordering::Equal => {},
+                Ordering::Equal => {}
                 ord => return ord,
-            }
+            },
         }
 
         // 5. Dev-release
         // Rules: No dev-release > dev-release
         match (self.dev, other.dev) {
-            (None, None) => {},
+            (None, None) => {}
             (Some(_), None) => return Ordering::Less,
             (None, Some(_)) => return Ordering::Greater,
             (Some(n1), Some(n2)) => match n1.cmp(&n2) {
-                Ordering::Equal => {},
+                Ordering::Equal => {}
                 ord => return ord,
-            }
+            },
         }
 
         // 6. Local version (String comparison)
@@ -205,7 +215,7 @@ impl fmt::Display for Version {
         if self.epoch > 0 {
             write!(f, "{}!", self.epoch)?;
         }
-        
+
         let release_str: Vec<String> = self.release.iter().map(|n| n.to_string()).collect();
         write!(f, "{}", release_str.join("."))?;
 
@@ -251,7 +261,7 @@ pub enum Operator {
     GreaterThanEqual,
     LessThan,
     LessThanEqual,
-    Compatible, // ~=
+    Compatible,     // ~=
     ArbitraryEqual, // ===
 }
 
@@ -265,7 +275,7 @@ impl VersionSpecifier {
     pub fn parse(spec_str: &str) -> Result<Self> {
         // Simple parser for now
         let spec_str = spec_str.trim();
-        
+
         let (op_str, ver_str) = if spec_str.starts_with("==") {
             ("==", &spec_str[2..])
         } else if spec_str.starts_with("!=") {
@@ -286,7 +296,7 @@ impl VersionSpecifier {
             // Default to == if no operator? Or maybe it's just a version which implies ==
             ("==", spec_str)
         };
-        
+
         let operator = match op_str {
             "==" => Operator::Equal,
             "!=" => Operator::NotEqual,
@@ -298,15 +308,12 @@ impl VersionSpecifier {
             "===" => Operator::ArbitraryEqual,
             _ => return Err(anyhow!("Unknown operator: {}", op_str)),
         };
-        
+
         let version = Version::parse(ver_str)?;
-        
-        Ok(VersionSpecifier {
-            operator,
-            version,
-        })
+
+        Ok(VersionSpecifier { operator, version })
     }
-    
+
     pub fn matches(&self, version: &Version) -> bool {
         match self.operator {
             Operator::Equal => version == &self.version,
@@ -320,21 +327,23 @@ impl VersionSpecifier {
                 if version < &self.version {
                     return false;
                 }
-                
+
                 // Check if they share the same prefix (major.minor)
                 // Simplified logic: check if major matches and minor >=
                 if version.epoch != self.version.epoch {
                     return false;
                 }
-                
-                if let (Some(v_maj), Some(s_maj)) = (version.release.get(0), self.version.release.get(0)) {
+
+                if let (Some(v_maj), Some(s_maj)) =
+                    (version.release.first(), self.version.release.first())
+                {
                     if v_maj != s_maj {
                         return false;
                     }
                 }
-                
-                true 
-            },
+
+                true
+            }
             Operator::ArbitraryEqual => version.to_string() == self.version.to_string(),
         }
     }

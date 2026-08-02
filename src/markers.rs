@@ -1,10 +1,11 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use regex::Regex;
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
-lazy_static! {
-    // Simplified PEP 508 regex pattern
-    static ref PEP508_PATTERN: Regex = Regex::new(r"(?x)
+// Simplified PEP 508 regex pattern
+static PEP508_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)
         ^
         (?P<name>[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?)  # Package name
         (?:\[(?P<extras>[^\]]+)\])?                          # Optional extras
@@ -12,8 +13,10 @@ lazy_static! {
         (?P<specifier>[^;]*)?                                # Version specifier
         (?:;\s*(?P<marker>.*))?                              # Environment marker
         $
-    ").unwrap();
-}
+    ",
+    )
+    .unwrap()
+});
 
 #[derive(Debug, Clone)]
 pub struct DependencySpecifier {
@@ -25,7 +28,7 @@ pub struct DependencySpecifier {
 
 #[derive(Debug, Clone)]
 pub struct VersionSpecifier {
-    pub operator: String,  // "==", ">=", "<=", ">", "<", "!=", "~=", "==="
+    pub operator: String, // "==", ">=", "<=", ">", "<", "!=", "~=", "==="
     pub version: String,
 }
 
@@ -38,28 +41,28 @@ impl EnvironmentMarker {
     pub fn evaluate(&self, env: &TargetEnvironment) -> bool {
         // Simplified evaluation
         // Full implementation would need a proper expression parser
-        
+
         let marker = &self.raw;
-        
+
         // Check for common patterns
         if marker.contains("python_version") {
             if let Some(required) = extract_version_requirement(marker, "python_version") {
                 return compare_versions(&env.python_version, &required.0, &required.1);
             }
         }
-        
+
         if marker.contains("sys_platform") {
             if let Some(required) = extract_string_requirement(marker, "sys_platform") {
                 return env.sys_platform == required;
             }
         }
-        
+
         if marker.contains("platform_system") {
             if let Some(required) = extract_string_requirement(marker, "platform_system") {
                 return env.platform_system == required;
             }
         }
-        
+
         // Default to true if we can't parse
         true
     }
@@ -85,16 +88,24 @@ impl Default for TargetEnvironment {
 }
 
 pub fn parse_requirement(req_str: &str) -> Result<DependencySpecifier> {
-    let caps = PEP508_PATTERN.captures(req_str.trim())
+    let caps = PEP508_PATTERN
+        .captures(req_str.trim())
         .ok_or_else(|| anyhow!("Invalid PEP 508 requirement: {}", req_str))?;
 
-    let name = caps.name("name")
+    let name = caps
+        .name("name")
         .ok_or_else(|| anyhow!("Missing package name"))?
         .as_str()
         .to_string();
 
-    let extras = caps.name("extras")
-        .map(|m| m.as_str().split(',').map(|s| s.trim().to_string()).collect())
+    let extras = caps
+        .name("extras")
+        .map(|m| {
+            m.as_str()
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect()
+        })
         .unwrap_or_default();
 
     let version_specs = if let Some(spec_str) = caps.name("specifier") {
@@ -121,10 +132,14 @@ fn parse_version_specifiers(spec_str: &str) -> Result<Vec<VersionSpecifier>> {
     }
 
     let mut specs = Vec::new();
-    
+
     // Remove parentheses
-    let spec_str = spec_str.trim().trim_start_matches('(').trim_end_matches(')').trim();
-    
+    let spec_str = spec_str
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')')
+        .trim();
+
     // Split by comma for multiple specifiers
     for part in spec_str.split(',') {
         let part = part.trim();
@@ -135,7 +150,7 @@ fn parse_version_specifiers(spec_str: &str) -> Result<Vec<VersionSpecifier>> {
         // Try to extract operator and version
         let operators = ["===", "~=", "!=", "<=", ">=", "==", "<", ">"];
         let mut found = false;
-        
+
         for op in &operators {
             if part.starts_with(op) {
                 let version = part[op.len()..].trim().to_string();
@@ -147,7 +162,7 @@ fn parse_version_specifiers(spec_str: &str) -> Result<Vec<VersionSpecifier>> {
                 break;
             }
         }
-        
+
         if !found && !part.is_empty() {
             // Assume it's just a version without operator (implicit ==)
             specs.push(VersionSpecifier {
@@ -156,7 +171,7 @@ fn parse_version_specifiers(spec_str: &str) -> Result<Vec<VersionSpecifier>> {
             });
         }
     }
-    
+
     Ok(specs)
 }
 
@@ -188,17 +203,17 @@ fn extract_string_requirement(marker: &str, key: &str) -> Option<String> {
 
 fn compare_versions(actual: &str, op: &str, required: &str) -> bool {
     use crate::pep440::Version;
-    
+
     let v_actual = match Version::parse(actual) {
         Ok(v) => v,
         Err(_) => return false, // Invalid actual version
     };
-    
+
     let v_required = match Version::parse(required) {
         Ok(v) => v,
         Err(_) => return false, // Invalid required version
     };
-    
+
     match op {
         ">=" => v_actual >= v_required,
         "<=" => v_actual <= v_required,

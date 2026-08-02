@@ -1,6 +1,6 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use anyhow::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dependency {
@@ -19,6 +19,12 @@ pub struct ProjectDependencies {
     pub project_name: Option<String>,
 }
 
+impl Default for ProjectDependencies {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProjectDependencies {
     pub fn new() -> Self {
         Self {
@@ -32,13 +38,13 @@ impl ProjectDependencies {
     pub fn from_requirements_txt<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let mut deps = Self::new();
-        
+
         for line in content.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-            
+
             if let Some(dep) = Self::parse_requirement_line(line) {
                 if dep.is_dev {
                     deps.dev_dependencies.push(dep);
@@ -47,25 +53,25 @@ impl ProjectDependencies {
                 }
             }
         }
-        
+
         Ok(deps)
     }
 
     pub fn from_pyproject_toml<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let toml: toml::Value = toml::from_str(&content)?;
-        
+
         let mut deps = Self::new();
-        
+
         if let Some(project) = toml.get("project") {
             if let Some(name) = project.get("name").and_then(|v| v.as_str()) {
                 deps.project_name = Some(name.to_string());
             }
-            
+
             if let Some(requires_python) = project.get("requires-python").and_then(|v| v.as_str()) {
                 deps.python_version = Some(requires_python.to_string());
             }
-            
+
             if let Some(dependencies) = project.get("dependencies").and_then(|v| v.as_array()) {
                 for dep in dependencies {
                     if let Some(dep_str) = dep.as_str() {
@@ -75,7 +81,7 @@ impl ProjectDependencies {
                     }
                 }
             }
-            
+
             if let Some(dev_deps) = project.get("optional-dependencies") {
                 if let Some(dev_group) = dev_deps.get("dev").and_then(|v| v.as_array()) {
                     for dep in dev_group {
@@ -89,7 +95,7 @@ impl ProjectDependencies {
                 }
             }
         }
-        
+
         Ok(deps)
     }
 
@@ -102,13 +108,13 @@ impl ProjectDependencies {
         // Handle different requirement formats manually
         // Operators to look for, longest first
         let operators = [">=", "<=", "==", "!=", "~=", ">", "<"];
-        
+
         for op in &operators {
             if let Some(idx) = line.find(op) {
                 let name = line[..idx].trim().to_string();
                 let constraint = op.to_string();
-                let version = line[idx+op.len()..].trim().to_string();
-                
+                let version = line[idx + op.len()..].trim().to_string();
+
                 return Some(Dependency {
                     name,
                     version: Some(version),
@@ -131,41 +137,41 @@ impl ProjectDependencies {
 
     pub fn to_requirements_txt(&self) -> String {
         let mut output = String::new();
-        
+
         if let Some(project_name) = &self.project_name {
             output.push_str(&format!("# Project: {}\n", project_name));
         }
-        
+
         if let Some(python_version) = &self.python_version {
             output.push_str(&format!("# Python version: {}\n", python_version));
         }
-        
+
         output.push_str("\n# Dependencies\n");
         for dep in &self.dependencies {
             output.push_str(&format!("{}\n", self.format_dependency(dep)));
         }
-        
+
         if !self.dev_dependencies.is_empty() {
             output.push_str("\n# Development dependencies\n");
             for dep in &self.dev_dependencies {
                 output.push_str(&format!("{}\n", self.format_dependency(dep)));
             }
         }
-        
+
         output
     }
 
     fn format_dependency(&self, dep: &Dependency) -> String {
         let mut formatted = dep.name.clone();
-        
+
         if let (Some(constraint), Some(version)) = (&dep.version_constraint, &dep.version) {
             formatted.push_str(&format!("{}{}", constraint, version));
         }
-        
+
         if let Some(source) = &dep.source {
             formatted.push_str(&format!(" @ {}", source));
         }
-        
+
         formatted
     }
 }

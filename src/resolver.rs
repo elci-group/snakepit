@@ -1,16 +1,17 @@
 use crate::dependency::{Dependency, ProjectDependencies};
+use crate::snakegg;
 use anyhow::Result;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 use semver::{Version, VersionReq};
-use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use snakegg::native::dirs;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use snakegg::native::dirs;
 
 #[derive(Clone)]
 struct DiskCache {
@@ -90,6 +91,12 @@ pub struct DependencyResolver {
     mem_cache: Arc<Mutex<HashMap<String, PyPIPackageInfo>>>,
 }
 
+impl Default for DependencyResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DependencyResolver {
     pub fn new() -> Self {
         Self {
@@ -99,28 +106,39 @@ impl DependencyResolver {
         }
     }
 
-    pub async fn resolve_dependencies(&mut self, project: &ProjectDependencies) -> Result<ResolvedDependencies> {
+    pub async fn resolve_dependencies(
+        &mut self,
+        project: &ProjectDependencies,
+    ) -> Result<ResolvedDependencies> {
         // Create a pseudo-root package representing the project
         let root_name = "root_project".to_string();
         let root_version = "0.0.0".to_string();
-        
+
         let mut root_requires = Vec::new();
-        
+
         // Add main dependencies
         for dep in &project.dependencies {
             let constraint = if let Some(v) = &dep.version {
-                format!("{} {}", dep.version_constraint.as_deref().unwrap_or("=="), v)
+                format!(
+                    "{} {}",
+                    dep.version_constraint.as_deref().unwrap_or("=="),
+                    v
+                )
             } else {
                 "".to_string()
             };
             root_requires.push(format!("{} {}", dep.name, constraint).trim().to_string());
         }
-        
+
         // Add dev dependencies (optional, maybe separate resolve?)
         // For now, let's resolve them together
         for dep in &project.dev_dependencies {
             let constraint = if let Some(v) = &dep.version {
-                format!("{} {}", dep.version_constraint.as_deref().unwrap_or("=="), v)
+                format!(
+                    "{} {}",
+                    dep.version_constraint.as_deref().unwrap_or("=="),
+                    v
+                )
             } else {
                 "".to_string()
             };
@@ -153,7 +171,7 @@ impl DependencyResolver {
 
         // Initialize Solver
         // We need to wrap self in Arc<Mutex> to pass to Solver
-        
+
         let shared_resolver = Arc::new(Mutex::new(Self {
             client: self.client.clone(),
             cache: self.cache.clone(),
@@ -161,22 +179,24 @@ impl DependencyResolver {
         }));
 
         let mut solver = crate::solver::Solver::new(
-            root_name.clone(), 
-            crate::pep440::Version::parse(&root_version).unwrap(), 
-            shared_resolver
+            root_name.clone(),
+            crate::pep440::Version::parse(&root_version).unwrap(),
+            shared_resolver,
         );
 
         let solution = solver.solve().await?;
-        
+
         // Convert solution to ResolvedDependencies
         let mut resolved = ResolvedDependencies::new();
-        
+
         for (name, version) in solution {
-            if name == root_name { continue; }
-            
+            if name == root_name {
+                continue;
+            }
+
             // Determine if it was a dev dependency (simplified check)
             let is_dev = project.dev_dependencies.iter().any(|d| d.name == name);
-            
+
             let resolved_dep = ResolvedDependency {
                 name: name.clone(),
                 version: version.to_string(),
@@ -184,37 +204,41 @@ impl DependencyResolver {
                 dependencies: Vec::new(), // We don't reconstruct the tree here yet
                 source: None,
             };
-            
+
             if is_dev {
                 resolved.dev_dependencies.push(resolved_dep);
             } else {
                 resolved.dependencies.push(resolved_dep);
             }
         }
-        
+
         Ok(resolved)
     }
 
     fn resolve_recursive<'a>(
-        &'a self, 
-        dep: &'a Dependency, 
-        visited: &'a mut HashSet<String>
+        &'a self,
+        dep: &'a Dependency,
+        visited: &'a mut HashSet<String>,
     ) -> Pin<Box<dyn Future<Output = Result<ResolvedDependency>> + Send + 'a>> {
         Box::pin(async move {
             // Check for cycles
             if visited.contains(&dep.name) {
-                // Return a placeholder or error? 
+                // Return a placeholder or error?
             }
             visited.insert(dep.name.clone());
 
             let package_info = self.fetch_package_info(&dep.name).await?;
-            
+
             let version = if let Some(requested_version) = &dep.version {
-                Self::find_best_version_static(&package_info, requested_version, &dep.version_constraint)?
+                Self::find_best_version_static(
+                    &package_info,
+                    requested_version,
+                    &dep.version_constraint,
+                )?
             } else {
                 package_info.info.version.clone()
             };
-            
+
             let mut resolved_dep = ResolvedDependency {
                 name: dep.name.clone(),
                 version: version.clone(),
@@ -222,7 +246,7 @@ impl DependencyResolver {
                 dependencies: Vec::new(),
                 source: dep.source.clone(),
             };
-            
+
             // Resolve sub-dependencies
             if let Some(requires) = &package_info.info.requires_dist {
                 for req_str in requires {
@@ -230,18 +254,20 @@ impl DependencyResolver {
                     if req_str.contains("extra ==") {
                         continue;
                     }
-                    
+
                     if let Some(sub_dep) = Self::parse_requirement_string_static(req_str) {
                         if !visited.contains(&sub_dep.name) {
                             let mut sub_visited = visited.clone();
-                            if let Ok(sub_resolved) = self.resolve_recursive(&sub_dep, &mut sub_visited).await {
+                            if let Ok(sub_resolved) =
+                                self.resolve_recursive(&sub_dep, &mut sub_visited).await
+                            {
                                 resolved_dep.dependencies.push(sub_resolved);
                             }
                         }
                     }
                 }
             }
-            
+
             Ok(resolved_dep)
         })
     }
@@ -271,33 +297,40 @@ impl DependencyResolver {
         // Fetch from network
         let url = format!("https://pypi.org/pypi/{}/json", package_name);
         let response = self.client.get(&url).send().await?;
-        
+
         if response.status().is_success() {
             let package_info: PyPIPackageInfo = response.json().await?;
-            
+
             // Update caches
             self.cache.set(package_name, &package_info);
             {
                 let mut cache = self.mem_cache.lock().await;
                 cache.insert(package_name.to_string(), package_info.clone());
             }
-            
+
             Ok(package_info)
         } else {
-            Err(anyhow::anyhow!("Package {} not found on PyPI", package_name))
+            Err(anyhow::anyhow!(
+                "Package {} not found on PyPI",
+                package_name
+            ))
         }
     }
 
-    fn find_best_version_static(package_info: &PyPIPackageInfo, requested_version: &str, constraint: &Option<String>) -> Result<String> {
+    fn find_best_version_static(
+        package_info: &PyPIPackageInfo,
+        requested_version: &str,
+        constraint: &Option<String>,
+    ) -> Result<String> {
         let available_versions: Vec<&String> = package_info.releases.keys().collect();
-        
+
         if let Some(constraint) = constraint {
             match constraint.as_str() {
                 ">=" => {
                     // Find the latest version that satisfies >= constraint
                     let req = VersionReq::parse(&format!(">={}", requested_version))?;
                     let mut best_version = None;
-                    
+
                     for version_str in available_versions {
                         if let Ok(version) = Version::parse(version_str) {
                             if req.matches(&version) {
@@ -311,20 +344,25 @@ impl DependencyResolver {
                             }
                         }
                     }
-                    
-                    return Ok(best_version.map(|v| v.to_string()).unwrap_or_else(|| requested_version.to_string()));
+
+                    Ok(best_version
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| requested_version.to_string()))
                 }
                 "==" => {
                     // Exact version match
                     if available_versions.contains(&&requested_version.to_string()) {
-                        return Ok(requested_version.to_string());
+                        Ok(requested_version.to_string())
                     } else {
-                        return Err(anyhow::anyhow!("Exact version {} not found", requested_version));
+                        Err(anyhow::anyhow!(
+                            "Exact version {} not found",
+                            requested_version
+                        ))
                     }
                 }
                 _ => {
                     // Default to latest version
-                    return Ok(package_info.info.version.clone());
+                    Ok(package_info.info.version.clone())
                 }
             }
         } else {
@@ -339,14 +377,14 @@ impl DependencyResolver {
         if parts.is_empty() {
             return None;
         }
-        
+
         let name = parts[0].to_string();
         let version = if parts.len() > 1 {
             Some(parts[1].to_string())
         } else {
             None
         };
-        
+
         Some(Dependency {
             name,
             version,
@@ -363,6 +401,12 @@ pub struct ResolvedDependencies {
     pub dev_dependencies: Vec<ResolvedDependency>,
 }
 
+impl Default for ResolvedDependencies {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResolvedDependencies {
     pub fn new() -> Self {
         Self {
@@ -373,19 +417,19 @@ impl ResolvedDependencies {
 
     pub fn to_requirements_txt(&self) -> String {
         let mut output = String::new();
-        
+
         output.push_str("# Resolved dependencies\n");
         for dep in &self.dependencies {
             output.push_str(&format!("{}=={}\n", dep.name, dep.version));
         }
-        
+
         if !self.dev_dependencies.is_empty() {
             output.push_str("\n# Development dependencies\n");
             for dep in &self.dev_dependencies {
                 output.push_str(&format!("{}=={}\n", dep.name, dep.version));
             }
         }
-        
+
         output
     }
 }
@@ -400,8 +444,4 @@ pub struct ResolvedDependency {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-
-}
+mod tests {}

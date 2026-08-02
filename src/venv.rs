@@ -1,9 +1,10 @@
+use crate::snakegg;
 use anyhow::Result;
+use snakegg::native::progress::ProgressBar;
+use snakegg::native::style::{green, red};
+use snakegg::native::which;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use snakegg::native::style::{red, green};
-use snakegg::native::progress::ProgressBar;
-use snakegg::native::which;
 
 #[derive(Debug, Clone)]
 pub enum VenvBackend {
@@ -25,7 +26,6 @@ impl VenvBackend {
             Self::Venv
         }
     }
-
 }
 
 pub struct VirtualEnvironmentManager {
@@ -33,7 +33,26 @@ pub struct VirtualEnvironmentManager {
     base_path: PathBuf,
 }
 
+impl Default for VirtualEnvironmentManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VirtualEnvironmentManager {
+    fn safe_venv_path(&self, name: &str) -> Result<PathBuf> {
+        let is_valid_name = !name.is_empty()
+            && name.len() <= 64
+            && name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+            && name != "."
+            && name != "..";
+        if !is_valid_name {
+            return Err(anyhow::anyhow!("Invalid virtual environment name"));
+        }
+        Ok(self.base_path.join(name))
+    }
     pub fn new() -> Self {
         Self {
             backend: VenvBackend::detect(),
@@ -60,24 +79,31 @@ impl VirtualEnvironmentManager {
     }
 
     pub async fn create_venv(&self, name: &str, python_version: Option<&str>) -> Result<PathBuf> {
-        let venv_path = self.base_path.join(name);
-        
+        let venv_path = self.safe_venv_path(name)?;
+
         if venv_path.exists() {
-            return Err(anyhow::anyhow!("Virtual environment '{}' already exists", name));
+            return Err(anyhow::anyhow!(
+                "Virtual environment '{}' already exists",
+                name
+            ));
         }
 
-        let mut pb = ProgressBar::new_spinner();
+        let pb = ProgressBar::new_spinner();
         pb.set_message(format!("Creating virtual environment '{}'...", name));
 
         let result = match self.backend {
             VenvBackend::Venv => self.create_with_venv(&venv_path, python_version).await,
-            VenvBackend::Virtualenv => self.create_with_virtualenv(&venv_path, python_version).await,
+            VenvBackend::Virtualenv => {
+                self.create_with_virtualenv(&venv_path, python_version)
+                    .await
+            }
             VenvBackend::Conda => self.create_with_conda(&venv_path, python_version).await,
             VenvBackend::Poetry => self.create_with_poetry(&venv_path, python_version).await,
         };
 
-        pb.finish_with_message(&format!("{} {}", 
-            green("✓"), 
+        pb.finish_with_message(format!(
+            "{} {}",
+            green("✓"),
             green(format!("Created virtual environment '{}'", name))
         ));
 
@@ -85,34 +111,44 @@ impl VirtualEnvironmentManager {
     }
 
     pub async fn activate_venv(&self, name: &str) -> Result<PathBuf> {
-        let venv_path = self.base_path.join(name);
-        
+        let venv_path = self.safe_venv_path(name)?;
+
         if !venv_path.exists() {
-            return Err(anyhow::anyhow!("Virtual environment '{}' does not exist", name));
+            return Err(anyhow::anyhow!(
+                "Virtual environment '{}' does not exist",
+                name
+            ));
         }
 
         let python_path = self.get_python_path(&venv_path)?;
-        
-        println!("{}", green(format!("Virtual environment '{}' activated", name)));
+
+        println!(
+            "{}",
+            green(format!("Virtual environment '{}' activated", name))
+        );
         println!("Python path: {}", python_path.display());
-        
+
         Ok(python_path)
     }
 
     pub async fn delete_venv(&self, name: &str) -> Result<()> {
-        let venv_path = self.base_path.join(name);
-        
+        let venv_path = self.safe_venv_path(name)?;
+
         if !venv_path.exists() {
-            return Err(anyhow::anyhow!("Virtual environment '{}' does not exist", name));
+            return Err(anyhow::anyhow!(
+                "Virtual environment '{}' does not exist",
+                name
+            ));
         }
 
-        let mut pb = ProgressBar::new_spinner();
+        let pb = ProgressBar::new_spinner();
         pb.set_message(format!("Deleting virtual environment '{}'...", name));
 
         std::fs::remove_dir_all(&venv_path)?;
 
-        pb.finish_with_message(&format!("{} {}", 
-            red("✓"), 
+        pb.finish_with_message(format!(
+            "{} {}",
+            red("✓"),
             red(format!("Deleted virtual environment '{}'", name))
         ));
 
@@ -125,7 +161,7 @@ impl VirtualEnvironmentManager {
         }
 
         let mut venvs = Vec::new();
-        
+
         for entry in std::fs::read_dir(&self.base_path)? {
             let entry = entry?;
             if entry.path().is_dir() {
@@ -140,7 +176,8 @@ impl VirtualEnvironmentManager {
     }
 
     pub fn get_venv_path(&self, name: &str) -> PathBuf {
-        self.base_path.join(name)
+        self.safe_venv_path(name)
+            .unwrap_or_else(|_| self.base_path.join("invalid"))
     }
 
     pub fn get_site_packages_path(&self, venv_path: &Path) -> Result<PathBuf> {
@@ -152,7 +189,7 @@ impl VirtualEnvironmentManager {
             if !lib_path.exists() {
                 return Err(anyhow::anyhow!("lib directory not found in venv"));
             }
-            
+
             for entry in std::fs::read_dir(&lib_path)? {
                 let entry = entry?;
                 let path = entry.path();
@@ -177,9 +214,7 @@ impl VirtualEnvironmentManager {
                     venv_path.join("bin").join("python")
                 }
             }
-            VenvBackend::Conda => {
-                venv_path.join("bin").join("python")
-            }
+            VenvBackend::Conda => venv_path.join("bin").join("python"),
             VenvBackend::Poetry => {
                 // Poetry manages its own virtual environments
                 venv_path.join("bin").join("python")
@@ -189,14 +224,20 @@ impl VirtualEnvironmentManager {
         if python_path.exists() {
             Ok(python_path)
         } else {
-            Err(anyhow::anyhow!("Python executable not found in virtual environment"))
+            Err(anyhow::anyhow!(
+                "Python executable not found in virtual environment"
+            ))
         }
     }
 
-    async fn create_with_venv(&self, venv_path: &Path, python_version: Option<&str>) -> Result<PathBuf> {
+    async fn create_with_venv(
+        &self,
+        venv_path: &Path,
+        python_version: Option<&str>,
+    ) -> Result<PathBuf> {
         let mut cmd = Command::new("python3");
         cmd.arg("-m").arg("venv");
-        
+
         if let Some(version) = python_version {
             // Try to use specific Python version
             let python_cmd = format!("python{}", version);
@@ -205,73 +246,97 @@ impl VirtualEnvironmentManager {
                 cmd.arg("-m").arg("venv");
             }
         }
-        
+
         cmd.arg(venv_path);
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to create virtual environment: {}", error));
+            return Err(anyhow::anyhow!(
+                "Failed to create virtual environment: {}",
+                error
+            ));
         }
 
         Ok(venv_path.to_path_buf())
     }
 
-    async fn create_with_virtualenv(&self, venv_path: &Path, python_version: Option<&str>) -> Result<PathBuf> {
+    async fn create_with_virtualenv(
+        &self,
+        venv_path: &Path,
+        python_version: Option<&str>,
+    ) -> Result<PathBuf> {
         let mut cmd = Command::new("virtualenv");
-        
+
         if let Some(version) = python_version {
-            cmd.arg("-p").arg(&format!("python{}", version));
+            cmd.arg("-p").arg(format!("python{}", version));
         }
-        
+
         cmd.arg(venv_path);
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to create virtual environment: {}", error));
+            return Err(anyhow::anyhow!(
+                "Failed to create virtual environment: {}",
+                error
+            ));
         }
 
         Ok(venv_path.to_path_buf())
     }
 
-    async fn create_with_conda(&self, venv_path: &Path, python_version: Option<&str>) -> Result<PathBuf> {
+    async fn create_with_conda(
+        &self,
+        venv_path: &Path,
+        python_version: Option<&str>,
+    ) -> Result<PathBuf> {
         let mut cmd = Command::new("conda");
         cmd.arg("create").arg("-y").arg("--prefix").arg(venv_path);
-        
+
         if let Some(version) = python_version {
-            cmd.arg(&format!("python={}", version));
+            cmd.arg(format!("python={}", version));
         } else {
             cmd.arg("python");
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to create conda environment: {}", error));
+            return Err(anyhow::anyhow!(
+                "Failed to create conda environment: {}",
+                error
+            ));
         }
 
         Ok(venv_path.to_path_buf())
     }
 
-    async fn create_with_poetry(&self, venv_path: &Path, python_version: Option<&str>) -> Result<PathBuf> {
+    async fn create_with_poetry(
+        &self,
+        venv_path: &Path,
+        python_version: Option<&str>,
+    ) -> Result<PathBuf> {
         // Poetry manages its own virtual environments
         // We'll create a new project directory and initialize it
         let mut cmd = Command::new("poetry");
         cmd.arg("new").arg(venv_path);
-        
+
         if let Some(version) = python_version {
-            cmd.arg("--python").arg(&format!("python{}", version));
+            cmd.arg("--python").arg(format!("python{}", version));
         }
 
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to create poetry project: {}", error));
+            return Err(anyhow::anyhow!(
+                "Failed to create poetry project: {}",
+                error
+            ));
         }
 
         Ok(venv_path.to_path_buf())
@@ -285,7 +350,10 @@ mod tests {
     #[test]
     fn test_backend_detection() {
         let backend = VenvBackend::detect();
-        assert!(matches!(backend, VenvBackend::Venv | VenvBackend::Virtualenv | VenvBackend::Conda | VenvBackend::Poetry));
+        assert!(matches!(
+            backend,
+            VenvBackend::Venv | VenvBackend::Virtualenv | VenvBackend::Conda | VenvBackend::Poetry
+        ));
     }
 
     #[test]
@@ -293,5 +361,12 @@ mod tests {
         let path = VirtualEnvironmentManager::get_default_venv_path();
         assert!(path.to_string_lossy().contains("snakepit"));
     }
-}
 
+    #[test]
+    fn venv_names_cannot_escape_the_base_directory() {
+        let manager = VirtualEnvironmentManager::new().with_base_path(std::env::temp_dir());
+        assert!(manager.safe_venv_path("project-env").is_ok());
+        assert!(manager.safe_venv_path("../outside").is_err());
+        assert!(manager.safe_venv_path("nested/path").is_err());
+    }
+}

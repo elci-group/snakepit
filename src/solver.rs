@@ -1,7 +1,7 @@
 use crate::pep440::Version;
+use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use anyhow::Result;
 use tokio::sync::Mutex;
 
 // Represents a package name
@@ -47,8 +47,12 @@ impl Constraint {
         match (self, other) {
             (Constraint::Any, c) | (c, Constraint::Any) => c.clone(),
             (Constraint::Exact(v1), Constraint::Exact(v2)) => {
-                if v1 == v2 { Constraint::Exact(v1.clone()) } else { Constraint::Union(vec![]) } // Empty
-            },
+                if v1 == v2 {
+                    Constraint::Exact(v1.clone())
+                } else {
+                    Constraint::Union(vec![])
+                } // Empty
+            }
             (Constraint::Range(min1, max1), Constraint::Range(min2, max2)) => {
                 let new_min = if min1 > min2 { min1 } else { min2 };
                 let new_max = if max1 < max2 { max1 } else { max2 };
@@ -57,22 +61,22 @@ impl Constraint {
                 } else {
                     Constraint::Union(vec![]) // Empty
                 }
-            },
+            }
             (Constraint::Intersection(c1), Constraint::Intersection(c2)) => {
                 let mut combined = c1.clone();
                 combined.extend(c2.clone());
                 Constraint::Intersection(combined)
-            },
+            }
             (c1, Constraint::Intersection(c2)) => {
                 let mut combined = c2.clone();
                 combined.push(c1.clone());
                 Constraint::Intersection(combined)
-            },
+            }
             (Constraint::Intersection(c1), c2) => {
                 let mut combined = c1.clone();
                 combined.push(c2.clone());
                 Constraint::Intersection(combined)
-            },
+            }
             (c1, c2) => Constraint::Intersection(vec![c1.clone(), c2.clone()]),
         }
     }
@@ -88,9 +92,13 @@ pub struct Term {
 
 impl Term {
     pub fn new(package: PackageName, constraint: Constraint) -> Self {
-        Self { package, constraint, positive: true }
+        Self {
+            package,
+            constraint,
+            positive: true,
+        }
     }
-    
+
     pub fn negate(&self) -> Self {
         Self {
             package: self.package.clone(),
@@ -98,13 +106,13 @@ impl Term {
             positive: !self.positive,
         }
     }
-    
+
     // Check relation with another term (subset, disjoint, overlap)
     pub fn relation(&self, other: &Term) -> SetRelation {
         if self.package != other.package {
-            return SetRelation::Disjoint; 
+            return SetRelation::Disjoint;
         }
-        
+
         // Simplified relation logic
         SetRelation::Overlapping
     }
@@ -129,9 +137,9 @@ pub struct Incompatibility {
 #[derive(Debug, Clone)]
 pub enum IncompatibilityCause {
     Dependency(PackageName, PackageName), // A depends on B
-    Root, // Root package requirement
-    NoVersion, // No version matches constraint
-    Conflict, // Derived conflict
+    Root,                                 // Root package requirement
+    NoVersion,                            // No version matches constraint
+    Conflict,                             // Derived conflict
 }
 
 // An Assignment is a decision made by the solver
@@ -155,6 +163,12 @@ pub struct PartialSolution {
     pub decisions: HashMap<PackageName, Version>, // Fast lookup for decided versions
 }
 
+impl Default for PartialSolution {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PartialSolution {
     pub fn new() -> Self {
         Self {
@@ -165,7 +179,9 @@ impl PartialSolution {
 
     pub fn assign(&mut self, assignment: Assignment) {
         match &assignment {
-            Assignment::Decision { package, version, .. } => {
+            Assignment::Decision {
+                package, version, ..
+            } => {
                 self.decisions.insert(package.clone(), version.clone());
             }
             Assignment::Derivation { .. } => {
@@ -174,15 +190,22 @@ impl PartialSolution {
         }
         self.assignments.push(assignment);
     }
-    
+
     pub fn decision_level(&self) -> usize {
         // Count decisions
-        self.assignments.iter().filter(|a| matches!(a, Assignment::Decision { .. })).count()
+        self.assignments
+            .iter()
+            .filter(|a| matches!(a, Assignment::Decision { .. }))
+            .count()
     }
     pub fn satisfies(&self, term: &Term) -> bool {
         if let Some(version) = self.decisions.get(&term.package) {
             let allows = term.constraint.allows(version);
-            if term.positive { allows } else { !allows }
+            if term.positive {
+                allows
+            } else {
+                !allows
+            }
         } else {
             false
         }
@@ -191,20 +214,21 @@ impl PartialSolution {
     pub fn unsatisfies(&self, term: &Term) -> bool {
         if let Some(version) = self.decisions.get(&term.package) {
             let allows = term.constraint.allows(version);
-            if term.positive { !allows } else { allows }
+            if term.positive {
+                !allows
+            } else {
+                allows
+            }
         } else {
             false
         }
     }
-    
+
     pub fn backtrack(&mut self, decision_level: usize) {
         while self.decision_level() > decision_level {
             if let Some(assignment) = self.assignments.pop() {
-                match assignment {
-                    Assignment::Decision { package, .. } => {
-                        self.decisions.remove(&package);
-                    }
-                    _ => {}
+                if let Assignment::Decision { package, .. } = assignment {
+                    self.decisions.remove(&package);
                 }
             }
         }
@@ -223,7 +247,11 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new(root: PackageName, root_version: Version, resolver: Arc<Mutex<DependencyResolver>>) -> Self {
+    pub fn new(
+        root: PackageName,
+        root_version: Version,
+        resolver: Arc<Mutex<DependencyResolver>>,
+    ) -> Self {
         Self {
             root,
             root_version,
@@ -242,21 +270,19 @@ impl Solver {
 
         loop {
             if let Some(conflict) = self.propagate() {
-                if let Err(e) = self.resolve_conflict(conflict) {
-                    return Err(e); // Unsolvable
-                }
+                self.resolve_conflict(conflict)?;
                 continue; // Retry propagation after backtracking
             }
-            
+
             if let Some(package) = self.choose_next_package() {
                 let info = self.fetch_package_info_safe(&package).await?;
                 let version = self.find_best_version_from_info(&package, &info)?;
                 let deps = self.extract_dependencies_from_info(&info)?;
-                
+
                 for (dep_name, dep_constraint) in deps {
                     let term1 = Term::new(package.clone(), Constraint::Exact(version.clone()));
                     let term2 = Term::new(dep_name.clone(), dep_constraint).negate();
-                    
+
                     self.incompatibilities.push(Arc::new(Incompatibility {
                         terms: vec![term1, term2],
                         cause: IncompatibilityCause::Dependency(package.clone(), dep_name),
@@ -282,36 +308,46 @@ impl Solver {
         Ok(info)
     }
 
-    fn find_best_version_from_info(&self, package: &str, info: &PyPIPackageInfo) -> Result<Version> {
+    fn find_best_version_from_info(
+        &self,
+        package: &str,
+        info: &PyPIPackageInfo,
+    ) -> Result<Version> {
         // Collect constraints from solution
         let mut required_constraint = Constraint::Any;
         for assignment in &self.solution.assignments {
-             match assignment {
-                Assignment::Derivation { term, .. } => {
-                    if term.package == package && term.positive {
-                        required_constraint = required_constraint.intersect(&term.constraint);
-                    }
+            if let Assignment::Derivation { term, .. } = assignment {
+                if term.package == package && term.positive {
+                    required_constraint = required_constraint.intersect(&term.constraint);
                 }
-                _ => {}
-             }
+            }
         }
-        
+
         // Find latest version that satisfies the constraint
         let mut best_version = None;
         for v_str in info.releases.keys() {
             if let Ok(v) = Version::parse(v_str) {
-                if required_constraint.allows(&v) {
-                    if best_version.as_ref().map_or(true, |best| &v > best) {
-                        best_version = Some(v);
-                    }
+                if required_constraint.allows(&v)
+                    && best_version.as_ref().is_none_or(|best| &v > best)
+                {
+                    best_version = Some(v);
                 }
             }
         }
-        
-        best_version.ok_or_else(|| anyhow::anyhow!("No valid versions found for {} satisfying {:?}", package, required_constraint))
+
+        best_version.ok_or_else(|| {
+            anyhow::anyhow!(
+                "No valid versions found for {} satisfying {:?}",
+                package,
+                required_constraint
+            )
+        })
     }
 
-    fn extract_dependencies_from_info(&self, info: &PyPIPackageInfo) -> Result<Vec<(PackageName, Constraint)>> {
+    fn extract_dependencies_from_info(
+        &self,
+        info: &PyPIPackageInfo,
+    ) -> Result<Vec<(PackageName, Constraint)>> {
         let mut deps = Vec::new();
         if let Some(requires) = &info.info.requires_dist {
             for req_str in requires {
@@ -322,33 +358,85 @@ impl Solver {
                             continue;
                         }
                     }
-                    
+
                     let mut constraints = Vec::new();
                     if spec.version_specs.is_empty() {
                         constraints.push(Constraint::Any);
                     } else {
                         for vspec in &spec.version_specs {
                             let c = match vspec.operator.as_str() {
-                                "==" => Version::parse(&vspec.version).map(Constraint::Exact).unwrap_or(Constraint::Any),
-                                ">=" => Version::parse(&vspec.version).map(|min| {
-                                    Constraint::Range(min, Version { epoch: 9999, release: vec![9999], pre: None, post: None, dev: None, local: None })
-                                }).unwrap_or(Constraint::Any),
-                                "<=" => Version::parse(&vspec.version).map(|v| {
-                                    Constraint::Union(vec![
-                                        Constraint::Range(Version { epoch: 0, release: vec![0], pre: None, post: None, dev: None, local: None }, v.clone()),
-                                        Constraint::Exact(v)
-                                    ])
-                                }).unwrap_or(Constraint::Any),
-                                ">" => Version::parse(&vspec.version).map(|v| {
-                                    Constraint::Intersection(vec![
-                                        Constraint::Range(v.clone(), Version { epoch: 9999, release: vec![9999], pre: None, post: None, dev: None, local: None }),
-                                        Constraint::Not(Box::new(Constraint::Exact(v)))
-                                    ])
-                                }).unwrap_or(Constraint::Any),
-                                "<" => Version::parse(&vspec.version).map(|v| {
-                                    Constraint::Range(Version { epoch: 0, release: vec![0], pre: None, post: None, dev: None, local: None }, v)
-                                }).unwrap_or(Constraint::Any),
-                                "!=" => Version::parse(&vspec.version).map(|v| Constraint::Not(Box::new(Constraint::Exact(v)))).unwrap_or(Constraint::Any),
+                                "==" => Version::parse(&vspec.version)
+                                    .map(Constraint::Exact)
+                                    .unwrap_or(Constraint::Any),
+                                ">=" => Version::parse(&vspec.version)
+                                    .map(|min| {
+                                        Constraint::Range(
+                                            min,
+                                            Version {
+                                                epoch: 9999,
+                                                release: vec![9999],
+                                                pre: None,
+                                                post: None,
+                                                dev: None,
+                                                local: None,
+                                            },
+                                        )
+                                    })
+                                    .unwrap_or(Constraint::Any),
+                                "<=" => Version::parse(&vspec.version)
+                                    .map(|v| {
+                                        Constraint::Union(vec![
+                                            Constraint::Range(
+                                                Version {
+                                                    epoch: 0,
+                                                    release: vec![0],
+                                                    pre: None,
+                                                    post: None,
+                                                    dev: None,
+                                                    local: None,
+                                                },
+                                                v.clone(),
+                                            ),
+                                            Constraint::Exact(v),
+                                        ])
+                                    })
+                                    .unwrap_or(Constraint::Any),
+                                ">" => Version::parse(&vspec.version)
+                                    .map(|v| {
+                                        Constraint::Intersection(vec![
+                                            Constraint::Range(
+                                                v.clone(),
+                                                Version {
+                                                    epoch: 9999,
+                                                    release: vec![9999],
+                                                    pre: None,
+                                                    post: None,
+                                                    dev: None,
+                                                    local: None,
+                                                },
+                                            ),
+                                            Constraint::Not(Box::new(Constraint::Exact(v))),
+                                        ])
+                                    })
+                                    .unwrap_or(Constraint::Any),
+                                "<" => Version::parse(&vspec.version)
+                                    .map(|v| {
+                                        Constraint::Range(
+                                            Version {
+                                                epoch: 0,
+                                                release: vec![0],
+                                                pre: None,
+                                                post: None,
+                                                dev: None,
+                                                local: None,
+                                            },
+                                            v,
+                                        )
+                                    })
+                                    .unwrap_or(Constraint::Any),
+                                "!=" => Version::parse(&vspec.version)
+                                    .map(|v| Constraint::Not(Box::new(Constraint::Exact(v))))
+                                    .unwrap_or(Constraint::Any),
                                 "~=" => {
                                     if let Ok(v) = Version::parse(&vspec.version) {
                                         if v.release.len() < 2 {
@@ -356,23 +444,58 @@ impl Solver {
                                         } else {
                                             let mut prefix = v.release.clone();
                                             prefix.pop();
-                                            if let Some(last) = prefix.last_mut() { *last += 1; }
-                                            let upper = Version { epoch: v.epoch, release: prefix, pre: None, post: None, dev: None, local: None };
+                                            if let Some(last) = prefix.last_mut() {
+                                                *last += 1;
+                                            }
+                                            let upper = Version {
+                                                epoch: v.epoch,
+                                                release: prefix,
+                                                pre: None,
+                                                post: None,
+                                                dev: None,
+                                                local: None,
+                                            };
                                             Constraint::Intersection(vec![
-                                                Constraint::Range(v, Version { epoch: 9999, release: vec![9999], pre: None, post: None, dev: None, local: None }),
-                                                Constraint::Range(Version { epoch: 0, release: vec![0], pre: None, post: None, dev: None, local: None }, upper)
+                                                Constraint::Range(
+                                                    v,
+                                                    Version {
+                                                        epoch: 9999,
+                                                        release: vec![9999],
+                                                        pre: None,
+                                                        post: None,
+                                                        dev: None,
+                                                        local: None,
+                                                    },
+                                                ),
+                                                Constraint::Range(
+                                                    Version {
+                                                        epoch: 0,
+                                                        release: vec![0],
+                                                        pre: None,
+                                                        post: None,
+                                                        dev: None,
+                                                        local: None,
+                                                    },
+                                                    upper,
+                                                ),
                                             ])
                                         }
-                                    } else { Constraint::Any }
-                                },
+                                    } else {
+                                        Constraint::Any
+                                    }
+                                }
                                 _ => Constraint::Any,
                             };
                             constraints.push(c);
                         }
                     }
-                    let final_c = if constraints.is_empty() { Constraint::Any }
-                                 else if constraints.len() == 1 { constraints[0].clone() }
-                                 else { Constraint::Intersection(constraints) };
+                    let final_c = if constraints.is_empty() {
+                        Constraint::Any
+                    } else if constraints.len() == 1 {
+                        constraints[0].clone()
+                    } else {
+                        Constraint::Intersection(constraints)
+                    };
                     deps.push((spec.name, final_c));
                 }
             }
@@ -390,21 +513,22 @@ impl Solver {
             let mut most_recent_index = 0;
             let mut most_recent_satisfier = None;
 
-
             for term in &incompatibility.terms {
                 // Find the assignment that satisfied this term
                 // We search backwards
                 for (i, assignment) in self.solution.assignments.iter().enumerate().rev() {
                     let satisfied = match assignment {
-                        Assignment::Decision { package, version, .. } => {
-                            package == &term.package && term.constraint.allows(version)
-                        }
-                        Assignment::Derivation { term: derived_term, .. } => {
-                            derived_term.package == term.package && 
+                        Assignment::Decision {
+                            package, version, ..
+                        } => package == &term.package && term.constraint.allows(version),
+                        Assignment::Derivation {
+                            term: derived_term, ..
+                        } => {
+                            derived_term.package == term.package &&
                             derived_term.positive == term.positive && // Simplified check
                             // Real check: derived_term implies term
                             // For now assume exact match or simple subset
-                            true 
+                            true
                         }
                     };
 
@@ -421,11 +545,14 @@ impl Solver {
 
             // If we can't find a satisfier, something is wrong (root conflict?)
             if most_recent_term.is_none() {
-                 return Err(anyhow::anyhow!("Root conflict detected (no satisfier found): {:?}", incompatibility));
+                return Err(anyhow::anyhow!(
+                    "Root conflict detected (no satisfier found): {:?}",
+                    incompatibility
+                ));
             }
 
             let satisfier = most_recent_satisfier.unwrap();
-            
+
             // If the satisfier is a Decision, we found the root cause at this level
             // But we need to check if we are at the right level to backtrack
             let decision_level = match &satisfier {
@@ -434,43 +561,49 @@ impl Solver {
             };
 
             if decision_level == 0 {
-                return Err(anyhow::anyhow!("Unsolvable conflict at root: {:?}", incompatibility));
+                return Err(anyhow::anyhow!(
+                    "Unsolvable conflict at root: {:?}",
+                    incompatibility
+                ));
             }
 
             match satisfier {
                 Assignment::Decision { .. } => {
                     // We found the decision that caused the conflict.
                     // We need to backtrack.
-                    break; 
+                    break;
                 }
                 Assignment::Derivation { cause, .. } => {
                     // Merge the incompatibility with the cause
                     // New terms = (incompatibility terms - term) U (cause terms - satisfier)
                     // This is the "Resolution" step
-                    
+
                     let term_to_remove = most_recent_term.unwrap();
                     let mut new_terms = Vec::new();
-                    
+
                     for t in &incompatibility.terms {
                         if t.package != term_to_remove.package {
                             new_terms.push(t.clone());
                         }
                     }
-                    
+
                     for t in &cause.terms {
                         if t.package != term_to_remove.package {
                             // Check if we already have a term for this package
-                            if let Some(existing_idx) = new_terms.iter().position(|x| x.package == t.package) {
+                            if let Some(existing_idx) =
+                                new_terms.iter().position(|x| x.package == t.package)
+                            {
                                 // Intersect constraints
                                 let existing = &new_terms[existing_idx];
                                 let new_constraint = existing.constraint.intersect(&t.constraint);
-                                new_terms[existing_idx] = Term::new(t.package.clone(), new_constraint);
+                                new_terms[existing_idx] =
+                                    Term::new(t.package.clone(), new_constraint);
                             } else {
                                 new_terms.push(t.clone());
                             }
                         }
                     }
-                    
+
                     incompatibility = Arc::new(Incompatibility {
                         terms: new_terms,
                         cause: IncompatibilityCause::Conflict,
@@ -481,35 +614,37 @@ impl Solver {
         }
 
         // Determine backtrack level
-        // It's the highest decision level among the terms in the *new* incompatibility, 
+        // It's the highest decision level among the terms in the *new* incompatibility,
         // excluding the one that was just resolved (which is now gone or changed).
         // Actually, in PubGrub, we backtrack to the level where the incompatibility becomes unit.
         // This is effectively the second highest decision level.
-        
+
         let mut levels = Vec::new();
         for term in &incompatibility.terms {
-             for assignment in self.solution.assignments.iter().rev() {
-                 let satisfied = match assignment {
-                    Assignment::Decision { package, version, .. } => {
-                        package == &term.package && term.constraint.allows(version)
-                    }
-                    Assignment::Derivation { term: derived_term, .. } => {
-                        derived_term.package == term.package
-                    }
+            for assignment in self.solution.assignments.iter().rev() {
+                let satisfied = match assignment {
+                    Assignment::Decision {
+                        package, version, ..
+                    } => package == &term.package && term.constraint.allows(version),
+                    Assignment::Derivation {
+                        term: derived_term, ..
+                    } => derived_term.package == term.package,
                 };
                 if satisfied {
                     match assignment {
                         Assignment::Decision { decision_level, .. } => levels.push(*decision_level),
-                        Assignment::Derivation { decision_level, .. } => levels.push(*decision_level),
+                        Assignment::Derivation { decision_level, .. } => {
+                            levels.push(*decision_level)
+                        }
                     }
                     break;
                 }
-             }
+            }
         }
-        
+
         levels.sort_unstable();
         levels.dedup();
-        
+
         let backtrack_level = if levels.len() < 2 {
             0
         } else {
@@ -521,19 +656,16 @@ impl Solver {
         }
 
         self.solution.backtrack(backtrack_level);
-        
+
         Ok(())
     }
 
     fn choose_next_package(&self) -> Option<PackageName> {
         for assignment in &self.solution.assignments {
-            match assignment {
-                Assignment::Derivation { term, .. } => {
-                    if term.positive && !self.solution.decisions.contains_key(&term.package) {
-                        return Some(term.package.clone());
-                    }
+            if let Assignment::Derivation { term, .. } = assignment {
+                if term.positive && !self.solution.decisions.contains_key(&term.package) {
+                    return Some(term.package.clone());
                 }
-                _ => {}
             }
         }
         None
