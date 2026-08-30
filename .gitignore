@@ -200,3 +200,7 @@ $RECYCLE.BIN/
 # Keep examples
 !examples/**/*
 snakegg/
+
+# kaptaind / build
+ /.kaptaind/
+ /target/
