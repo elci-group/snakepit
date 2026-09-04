@@ -202,5 +202,5 @@ $RECYCLE.BIN/
 snakegg/
 
 # kaptaind / build
- /.kaptaind/
- /target/
+/.kaptaind/
+/target/
