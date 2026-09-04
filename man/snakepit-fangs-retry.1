@@ -1,0 +1,25 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH "snakepit fangs retry" 1  "snakepit fangs retry " 
+.SH NAME
+snakepit fangs retry \- 🔁 Add retry logic to a function
+.SH SYNOPSIS
+\fBsnakepit fangs retry\fR [\fB\-m\fR|\fB\-\-max\-attempts\fR] [\fB\-b\fR|\fB\-\-backoff\-ms\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIMODULE\fR> <\fIFUNCTION\fR> 
+.SH DESCRIPTION
+🔁 Add retry logic to a function
+.SH OPTIONS
+.TP
+\fB\-m\fR, \fB\-\-max\-attempts\fR \fI<MAX_ATTEMPTS>\fR [default: 3]
+Maximum retry attempts
+.TP
+\fB\-b\fR, \fB\-\-backoff\-ms\fR \fI<BACKOFF_MS>\fR [default: 1000]
+Backoff time in milliseconds
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIMODULE\fR>
+Module name
+.TP
+<\fIFUNCTION\fR>
+Function name

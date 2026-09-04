@@ -240,6 +240,24 @@ cargo build --release
 # Binary at: target/release/snakepit
 ```
 
+### Man Pages
+
+Manual pages for every command and subcommand live in `man/` (e.g.
+`man/snakepit-install.1`, `man/snakepit-venv-create.1`). Install them with:
+
+```bash
+sudo cp man/*.1 /usr/local/share/man/man1/
+mandb  # optional, refresh the index
+```
+
+Then view with `man snakepit` or `man snakepit-venv-create`. The pages are
+generated from the clap definitions in `src/cli.rs` — regenerate them after
+changing the CLI with:
+
+```bash
+cargo run --example gen-man
+```
+
 ### Traditional Package Management
 
 ```bash
